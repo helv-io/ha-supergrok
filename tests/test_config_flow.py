@@ -13,6 +13,7 @@ from custom_components.grok_oauth.config_flow import GrokOAuthConfigFlow
 from custom_components.grok_oauth.const import (
     CONF_SELECTED_MODELS,
     DOMAIN,
+    MODEL_REALTIME,
     OAUTH_CLIENT_ID,
     OAUTH_REDIRECT_URI,
 )
@@ -188,8 +189,18 @@ async def test_models_requires_selection(hass: HomeAssistant) -> None:
         result = await flow.async_step_browser({"callback_url": "bare-auth-code"})
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "models"
+    schema = result["data_schema"].schema
+    selected_key = next(
+        key for key in schema if getattr(key, "schema", None) == CONF_SELECTED_MODELS
+    )
+    options = schema[selected_key].config["options"]
+    assert MODEL_REALTIME not in [option["value"] for option in options]
 
     result = await flow.async_step_models({CONF_SELECTED_MODELS: []})
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"]["base"] == "select_model"
+
+    result = await flow.async_step_models({CONF_SELECTED_MODELS: [MODEL_REALTIME]})
     assert result["type"] is FlowResultType.FORM
     assert result["errors"]["base"] == "select_model"
 
@@ -211,7 +222,7 @@ async def test_browser_success_creates_entry(hass: HomeAssistant) -> None:
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "models"
         result = await flow.async_step_models(
-            {CONF_SELECTED_MODELS: ["grok-4.6", "voice"]}
+            {CONF_SELECTED_MODELS: ["grok-4.6", MODEL_REALTIME, "voice"]}
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY

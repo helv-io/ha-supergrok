@@ -5,12 +5,10 @@ from __future__ import annotations
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 from voluptuous import MultipleInvalid
 
 from custom_components.grok_oauth import async_setup
 from custom_components.grok_oauth.const import (
-    CONF_SELECTED_MODELS,
     DOMAIN,
     SERVICE_CREATE_REALTIME_SESSION,
     SERVICE_GENERATE_CONTENT,
@@ -19,7 +17,7 @@ from custom_components.grok_oauth.const import (
 
 
 async def _register_services(hass: HomeAssistant) -> None:
-    """Register the three public services without a live config entry."""
+    """Register the public services without a live config entry."""
     assert await async_setup(hass, {})
     await hass.async_block_till_done()
 
@@ -50,31 +48,14 @@ async def test_generate_image_rejects_unknown_entry(hass: HomeAssistant) -> None
         )
 
 
-async def test_create_realtime_session_requires_realtime(
+async def test_create_realtime_session_is_not_registered(
     hass: HomeAssistant,
 ) -> None:
-    """create_realtime_session raises when Realtime was not selected."""
+    """Realtime is withheld; create_realtime_session is not a live service."""
     await _register_services(hass)
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "access_token": "test-access-token",
-            "refresh_token": "test-refresh-token",
-            "expires_at": 9999999999,
-            CONF_SELECTED_MODELS: ["grok-4.6"],
-        },
-        entry_id="grok-no-realtime",
-    )
-    entry.add_to_hass(hass)
-
-    with pytest.raises(ServiceValidationError, match="Realtime is not enabled"):
-        await hass.services.async_call(
-            DOMAIN,
-            SERVICE_CREATE_REALTIME_SESSION,
-            {"config_entry": entry.entry_id},
-            blocking=True,
-            return_response=True,
-        )
+    assert not hass.services.has_service(DOMAIN, SERVICE_CREATE_REALTIME_SESSION)
+    assert hass.services.has_service(DOMAIN, SERVICE_GENERATE_CONTENT)
+    assert hass.services.has_service(DOMAIN, SERVICE_GENERATE_IMAGE)
 
 
 async def test_generate_image_rejects_invalid_n(hass: HomeAssistant) -> None:
@@ -90,16 +71,3 @@ async def test_generate_image_rejects_invalid_n(hass: HomeAssistant) -> None:
         )
 
 
-async def test_create_realtime_session_rejects_short_ttl(
-    hass: HomeAssistant,
-) -> None:
-    """expires_seconds is validated by the service schema (30–3600)."""
-    await _register_services(hass)
-    with pytest.raises((ServiceValidationError, MultipleInvalid)):
-        await hass.services.async_call(
-            DOMAIN,
-            SERVICE_CREATE_REALTIME_SESSION,
-            {"config_entry": "any", "expires_seconds": 1},
-            blocking=True,
-            return_response=True,
-        )

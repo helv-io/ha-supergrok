@@ -12,6 +12,7 @@ from .const import (
     DEFAULT_VOICE_MODEL,
     MODEL_REALTIME,
     MODEL_VOICE,
+    REALTIME_ENABLED,
 )
 
 Kind = Literal["chat", "voice", "realtime", "image"]
@@ -28,8 +29,9 @@ class GrokModel:
     ha_platforms: tuple[str, ...]
 
 
-# Voice and Realtime are first-class picker options, not just chat slugs.
-# Chat slugs become conversation + AI Task entities.
+# Voice is a first-class picker option, not just a chat slug. Realtime stays
+# in the catalog so it can be re-enabled via REALTIME_ENABLED. Chat slugs
+# become conversation + AI Task entities.
 MODEL_CATALOG: tuple[GrokModel, ...] = (
     GrokModel(
         DEFAULT_CHAT_MODEL,
@@ -129,7 +131,7 @@ CATALOG_BY_ID: dict[str, GrokModel] = {model.id: model for model in MODEL_CATALO
 DEFAULT_SELECTED_MODELS: tuple[str, ...] = (
     DEFAULT_CHAT_MODEL,
     MODEL_VOICE,
-    MODEL_REALTIME,
+    *( (MODEL_REALTIME,) if REALTIME_ENABLED else () ),
     DEFAULT_IMAGE_MODEL,
 )
 
@@ -142,7 +144,15 @@ def picker_options() -> list[dict[str, str]]:
             "label": f"{model.label} — {model.description}",
         }
         for model in MODEL_CATALOG
+        if REALTIME_ENABLED or model.kind != "realtime"
     ]
+
+
+def without_withheld_models(selected: list[str] | tuple[str, ...]) -> list[str]:
+    """Drop surfaces that are not offered in this release (Realtime)."""
+    if REALTIME_ENABLED:
+        return list(selected)
+    return [item for item in selected if item != MODEL_REALTIME]
 
 
 def selected_of_kind(selected: list[str] | tuple[str, ...], kind: Kind) -> list[str]:
@@ -156,8 +166,8 @@ def has_voice(selected: list[str] | tuple[str, ...]) -> bool:
 
 
 def has_realtime(selected: list[str] | tuple[str, ...]) -> bool:
-    """Return whether Realtime was picked."""
-    return MODEL_REALTIME in selected
+    """Return whether Realtime was picked and is offered in this release."""
+    return REALTIME_ENABLED and MODEL_REALTIME in selected
 
 
 def chat_models(selected: list[str] | tuple[str, ...]) -> list[str]:

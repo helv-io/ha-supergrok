@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The integration version is `custom_components/grok_oauth/manifest.json` → `version`.
 
+## [0.3.0] - 2026-08-14
+
+### Changed
+
+- Realtime is withheld pending a later release. Setup and options no longer offer it; existing entries that had it selected no longer expose a Realtime conversation entity.
+- HACS Action runs with no `ignore` keys (topics are already set on the GitHub repository).
+
+### Removed
+
+- `grok_oauth.create_realtime_session` is not registered in this release.
+
 ## [0.2.2] - 2026-08-14
 
 ### Changed

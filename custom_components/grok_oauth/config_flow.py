@@ -28,7 +28,7 @@ from .const import (
     LOGGER,
     OAUTH_REDIRECT_URI,
 )
-from .models import DEFAULT_SELECTED_MODELS, picker_options
+from .models import DEFAULT_SELECTED_MODELS, picker_options, without_withheld_models
 from .oauth import (
     GrokOAuthError,
     build_authorize_url,
@@ -42,11 +42,12 @@ from .oauth import (
 
 
 def _models_schema(defaults: list[str] | None = None) -> vol.Schema:
+    selected = without_withheld_models(defaults or list(DEFAULT_SELECTED_MODELS))
     return vol.Schema(
         {
             vol.Required(
                 CONF_SELECTED_MODELS,
-                default=defaults or list(DEFAULT_SELECTED_MODELS),
+                default=selected,
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=picker_options(),
@@ -254,7 +255,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Multi-select which Grok surfaces to expose to Home Assistant."""
         if user_input is not None:
-            selected = user_input.get(CONF_SELECTED_MODELS) or []
+            selected = without_withheld_models(user_input.get(CONF_SELECTED_MODELS) or [])
             if not selected:
                 return self.async_show_form(
                     step_id="models",
@@ -302,20 +303,20 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class GrokOAuthOptionsFlow(OptionsFlow):
-    """Change which models / Voice / Realtime / Imagine surfaces are exposed."""
+    """Change which models / Voice / Imagine surfaces are exposed."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Show the multi-picker."""
-        current = list(
+        current = without_withheld_models(
             self.config_entry.options.get(
                 CONF_SELECTED_MODELS,
                 self.config_entry.data.get(CONF_SELECTED_MODELS, DEFAULT_SELECTED_MODELS),
             )
         )
         if user_input is not None:
-            selected = user_input.get(CONF_SELECTED_MODELS) or []
+            selected = without_withheld_models(user_input.get(CONF_SELECTED_MODELS) or [])
             if not selected:
                 return self.async_show_form(
                     step_id="init",

@@ -5,7 +5,7 @@
 <h1 align="center">Grok OAuth</h1>
 
 <p align="center">
-  SuperGrok in Home Assistant — conversation, Voice, Realtime, and Imagine.<br>
+  SuperGrok in Home Assistant — conversation, Voice, and Imagine.<br>
   No <code>XAI_API_KEY</code>. Sign in with your SuperGrok or X Premium+ account.
 </p>
 
@@ -38,10 +38,11 @@ Pick models once during setup. Each choice becomes a Home Assistant surface:
 | --- | --- |
 | Chat (`grok-4.6`, `grok-4-fast`, …) | Conversation agents + AI Task |
 | **Voice** | TTS (`POST /v1/tts`) and STT (`POST /v1/stt`) |
-| **Realtime** | Conversation over `wss://api.x.ai/v1/realtime` (falls back to chat if the socket fails) |
 | Imagine | `ai_task.generate_image` + `grok_oauth.generate_image` |
 
 Change the picker later from the integration options. No YAML.
+
+Realtime is not in this release.
 
 ---
 
@@ -96,7 +97,7 @@ It **rejects** My Home Assistant (`https://my.home-assistant.io/redirect/oauth`)
 3. The browser goes to `http://127.0.0.1:56121/callback?...` and fails to connect. **That is expected** — nothing is listening on your computer.
 4. Copy the **full URL** from the address bar (it contains `code=`) and paste it into the form.
 
-Then multi-select chat models, Voice, Realtime, and Imagine.
+Then multi-select chat models, Voice, and Imagine.
 
 ---
 
@@ -116,7 +117,6 @@ Point a [Voice Assistant](https://my.home-assistant.io/redirect/voice_assistants
 | --- | --- |
 | `grok_oauth.generate_content` | Chat completion with the SuperGrok session |
 | `grok_oauth.generate_image` | Imagine (`/v1/images/generations`) |
-| `grok_oauth.create_realtime_session` | Ephemeral Realtime client secret |
 
 Open them from Developer Tools:
 

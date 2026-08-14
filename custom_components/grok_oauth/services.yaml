@@ -84,28 +84,29 @@ generate_image:
             - url
             - b64_json
 
-create_realtime_session:
-  name: Create Realtime session
-  description: Mint an ephemeral Grok Realtime client secret (POST /v1/realtime/client_secrets) for wss://api.x.ai/v1/realtime.
-  fields:
-    config_entry:
-      name: Grok OAuth entry
-      required: true
-      selector:
-        config_entry:
-          integration: grok_oauth
-    model:
-      name: Realtime model
-      required: false
-      default: grok-voice-latest
-      selector:
-        text:
-    expires_seconds:
-      name: Secret lifetime
-      required: false
-      default: 600
-      selector:
-        number:
-          min: 30
-          max: 3600
-          unit_of_measurement: seconds
+# Realtime is withheld from this release (REALTIME_ENABLED = False).
+# create_realtime_session:
+#   name: Create Realtime session
+#   description: Mint an ephemeral Grok Realtime client secret (POST /v1/realtime/client_secrets) for wss://api.x.ai/v1/realtime.
+#   fields:
+#     config_entry:
+#       name: Grok OAuth entry
+#       required: true
+#       selector:
+#         config_entry:
+#           integration: grok_oauth
+#     model:
+#       name: Realtime model
+#       required: false
+#       default: grok-voice-latest
+#       selector:
+#         text:
+#     expires_seconds:
+#       name: Secret lifetime
+#       required: false
+#       default: 600
+#       selector:
+#         number:
+#           min: 30
+#           max: 3600
+#           unit_of_measurement: seconds

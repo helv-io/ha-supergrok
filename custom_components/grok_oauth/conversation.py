@@ -19,6 +19,7 @@ from .const import (
     DEFAULT_TTS_VOICE,
     DOMAIN,
     LOGGER,
+    REALTIME_ENABLED,
 )
 from .helpers import async_run_chat_log
 from .models import CATALOG_BY_ID, chat_models, has_realtime
@@ -32,14 +33,14 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up one conversation entity per selected chat model, plus Realtime."""
+    """Set up one conversation entity per selected chat model."""
     selected = config_entry.data.get(CONF_SELECTED_MODELS, [DEFAULT_CHAT_MODEL])
     chats = chat_models(selected)
     entities: list[conversation.ConversationEntity] = [
         GrokConversationEntity(config_entry, model, realtime=False, default_agent=(index == 0))
         for index, model in enumerate(chats)
     ]
-    if has_realtime(selected):
+    if REALTIME_ENABLED and has_realtime(selected):
         entities.append(
             GrokConversationEntity(
                 config_entry,

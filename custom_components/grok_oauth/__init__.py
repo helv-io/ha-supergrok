@@ -24,6 +24,7 @@ from .const import (
     DEFAULT_REALTIME_MODEL,
     DOMAIN,
     LOGGER,
+    REALTIME_ENABLED,
     SERVICE_CREATE_REALTIME_SESSION,
     SERVICE_GENERATE_CONTENT,
     SERVICE_GENERATE_IMAGE,
@@ -153,21 +154,25 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         ),
         supports_response=SupportsResponse.ONLY,
     )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_CREATE_REALTIME_SESSION,
-        create_realtime_session,
-        schema=vol.Schema(
-            {
-                vol.Required("config_entry"): selector.ConfigEntrySelector({"integration": DOMAIN}),
-                vol.Optional("model", default=DEFAULT_REALTIME_MODEL): cv.string,
-                vol.Optional("expires_seconds", default=600): vol.All(
-                    vol.Coerce(int), vol.Range(min=30, max=3600)
-                ),
-            }
-        ),
-        supports_response=SupportsResponse.ONLY,
-    )
+    # Realtime is withheld from this release. Flip REALTIME_ENABLED to restore.
+    if REALTIME_ENABLED:
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_CREATE_REALTIME_SESSION,
+            create_realtime_session,
+            schema=vol.Schema(
+                {
+                    vol.Required("config_entry"): selector.ConfigEntrySelector(
+                        {"integration": DOMAIN}
+                    ),
+                    vol.Optional("model", default=DEFAULT_REALTIME_MODEL): cv.string,
+                    vol.Optional("expires_seconds", default=600): vol.All(
+                        vol.Coerce(int), vol.Range(min=30, max=3600)
+                    ),
+                }
+            ),
+            supports_response=SupportsResponse.ONLY,
+        )
     return True
 
 

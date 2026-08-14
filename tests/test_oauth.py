@@ -9,6 +9,7 @@ from custom_components.grok_oauth.const import (
     DOMAIN,
     OAUTH_CLIENT_ID,
     OAUTH_REDIRECT_URI,
+    REALTIME_ENABLED,
     SERVICE_CREATE_REALTIME_SESSION,
     SERVICE_GENERATE_CONTENT,
     SERVICE_GENERATE_IMAGE,
@@ -36,6 +37,7 @@ def test_public_contract_is_unchanged() -> None:
     assert SERVICE_GENERATE_CONTENT == "generate_content"
     assert SERVICE_GENERATE_IMAGE == "generate_image"
     assert SERVICE_CREATE_REALTIME_SESSION == "create_realtime_session"
+    assert REALTIME_ENABLED is False
 
 
 def test_parse_full_callback_url() -> None:

@@ -16,6 +16,11 @@ DEFAULT_TTS_NAME: Final = "Grok Voice TTS"
 DEFAULT_STT_NAME: Final = "Grok Voice STT"
 DEFAULT_REALTIME_NAME: Final = "Grok Realtime"
 
+# Realtime is withheld from this release. Flip to True to restore the picker
+# option, conversation entity, and create_realtime_session service. Keep the
+# client/helpers in the tree either way.
+REALTIME_ENABLED: Final = False
+
 # SuperGrok / Grok CLI public OAuth client (no secret). Same client used by
 # the official Grok CLI, Hermes, OpenCode, and other SuperGrok OAuth clients.
 OAUTH_CLIENT_ID: Final = "b1a00492-073a-47ea-816f-4c329264a828"

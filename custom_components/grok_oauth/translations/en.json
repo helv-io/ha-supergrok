@@ -29,7 +29,7 @@
       },
       "models": {
         "title": "Expose Grok to Home Assistant",
-        "description": "Pick the chat models, Voice (TTS/STT), Realtime, and Imagine surfaces to create as Home Assistant entities.",
+        "description": "Pick the chat models, Voice (TTS/STT), and Imagine surfaces to create as Home Assistant entities. Realtime is not in this release.",
         "data": {
           "selected_models": "Models and capabilities"
         }
@@ -74,7 +74,7 @@
     "step": {
       "init": {
         "title": "Grok models",
-        "description": "Choose which Grok chat models, Voice, Realtime, and Imagine surfaces Home Assistant should expose.",
+        "description": "Choose which Grok chat models, Voice, and Imagine surfaces Home Assistant should expose. Realtime is not in this release.",
         "data": {
           "selected_models": "Models and capabilities"
         }
@@ -105,15 +105,6 @@
         "aspect_ratio": { "name": "Aspect ratio", "description": "Imagine aspect ratio." },
         "resolution": { "name": "Resolution", "description": "1k or 2k." },
         "response_format": { "name": "Response format", "description": "url or b64_json." }
-      }
-    },
-    "create_realtime_session": {
-      "name": "Create Realtime session",
-      "description": "Mint an ephemeral Grok Realtime client secret.",
-      "fields": {
-        "config_entry": { "name": "Grok OAuth entry", "description": "Configured Grok OAuth integration." },
-        "model": { "name": "Realtime model", "description": "grok-voice-latest or grok-voice-think-fast-2.0." },
-        "expires_seconds": { "name": "Secret lifetime", "description": "30–3600 seconds." }
       }
     }
   }

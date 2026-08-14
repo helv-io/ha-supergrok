@@ -12,7 +12,7 @@ from voluptuous_openapi import convert
 
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import LOGGER, MAX_TOOL_ITERATIONS
+from .const import LOGGER, MAX_TOOL_ITERATIONS, REALTIME_ENABLED
 from .client import ChatResult, GrokClient
 from .logutil import summarize_tools
 
@@ -171,7 +171,7 @@ async def async_run_chat_log(
             len(messages),
             summarize_tools(tools),
         )
-        if realtime:
+        if realtime and REALTIME_ENABLED:
             instructions = ""
             user_text = ""
             for message in messages:

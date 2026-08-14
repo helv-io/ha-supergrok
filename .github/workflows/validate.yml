@@ -23,6 +23,3 @@ jobs:
         uses: hacs/action@main
         with:
           category: integration
-          # Topics must be set on the GitHub repo (hacs, home-assistant, grok,
-          # xai, oauth, custom-component). This token cannot write topics.
-          ignore: topics
