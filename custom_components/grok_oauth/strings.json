@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Sign in with SuperGrok",
-        "description": "Device code is the recommended sign-in: open the verification URL on any device and approve — no paste. Browser login is the backup. xAI only accepts the Grok CLI loopback (`{redirect_uri}`), not My Home Assistant, so that path asks you to paste the callback URL.",
+        "description": "Device code is the recommended sign-in: open the verification URL on any device and approve (no paste). Browser login is the backup. xAI only accepts the Grok CLI loopback (`{redirect_uri}`), not My Home Assistant, so that path asks you to paste the callback URL.",
         "data": {
           "method": "Sign-in method"
         }

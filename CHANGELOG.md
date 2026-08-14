@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The integration version is `custom_components/grok_oauth/manifest.json` → `version`.
 
+## [0.3.2] - 2026-08-14
+
+### Changed
+
+- Drop em dashes from copy (README, setup strings, picker labels) and put each My Home Assistant badge on one line so GitHub does not treat leftover whitespace as a link.
+
 ## [0.3.1] - 2026-08-14
 
 ### Changed

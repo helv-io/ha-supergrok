@@ -141,7 +141,7 @@ def picker_options() -> list[dict[str, str]]:
     return [
         {
             "value": model.id,
-            "label": f"{model.label} — {model.description}",
+            "label": f"{model.label}: {model.description}",
         }
         for model in MODEL_CATALOG
         if REALTIME_ENABLED or model.kind != "realtime"

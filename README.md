@@ -5,7 +5,7 @@
 <h1 align="center">SuperGrok OAuth</h1>
 
 <p align="center">
-  Sign in with SuperGrok or X Premium+ — OAuth, no API key.<br>
+  Sign in with SuperGrok or X Premium+: OAuth, no API key.<br>
   Conversation, Voice, and Imagine in Home Assistant.
 </p>
 
@@ -17,13 +17,8 @@
 </p>
 
 <p align="center">
-  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=helv-io&repository=ha-supergrok&category=integration">
-    <img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.">
-  </a>
-  &nbsp;
-  <a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=grok_oauth">
-    <img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Open your Home Assistant instance and start setting up a new integration.">
-  </a>
+  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=helv-io&repository=ha-supergrok&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store."></a>
+  <a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=grok_oauth"><img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Open your Home Assistant instance and start setting up a new integration."></a>
 </p>
 
 > Unofficial. Uses the same SuperGrok OAuth surface as Grok CLI / Hermes. xAI can change or gate it at any time. Not affiliated with xAI or Home Assistant.
@@ -52,7 +47,7 @@ Realtime is not in this release.
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=helv-io&repository=ha-supergrok&category=integration)
 
-1. Click the button — Home Assistant opens this repository in HACS.
+1. Click the button. Home Assistant opens this repository in HACS.
 2. **Download** **SuperGrok OAuth**.
 3. Restart Home Assistant.
 
@@ -84,7 +79,7 @@ Or: **Settings → Devices & services → Add integration → SuperGrok OAuth**.
 
 ### Sign in
 
-**Device code** is the default. Open the verification URL on any device, approve, and the form continues on its own — no paste.
+**Device code** is the default. Open the verification URL on any device, approve, and the form continues on its own (no paste).
 
 **Browser login** is the backup. xAI’s SuperGrok / Grok CLI public client only allows
 
@@ -92,9 +87,9 @@ Or: **Settings → Devices & services → Add integration → SuperGrok OAuth**.
 
 It **rejects** My Home Assistant (`https://my.home-assistant.io/redirect/oauth`). That is why the browser path asks you to paste a URL.
 
-1. Choose **Browser login (backup — paste the localhost callback URL)**.
+1. Choose **Browser login (backup: paste the localhost callback URL)**.
 2. Open the SuperGrok sign-in link and approve access.
-3. The browser goes to `http://127.0.0.1:56121/callback?...` and fails to connect. **That is expected** — nothing is listening on your computer.
+3. The browser goes to `http://127.0.0.1:56121/callback?...` and fails to connect. **That is expected**: nothing is listening on your computer.
 4. Copy the **full URL** from the address bar (it contains `code=`) and paste it into the form.
 
 Then multi-select chat models, Voice, and Imagine.
@@ -137,7 +132,7 @@ logger:
     custom_components.grok_oauth: debug
 ```
 
-Diagnostics (⋮ on the integration card) include selected models, token expiry, and recent events — no tokens.
+Diagnostics (⋮ on the integration card) include selected models, token expiry, and recent events (no tokens).
 
 ---
 
@@ -170,9 +165,9 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 Given a version `MAJOR.MINOR.PATCH`:
 
-- **MAJOR** — incompatible changes to the integration’s public surface (config entries, entities, services)
-- **MINOR** — backwards-compatible features
-- **PATCH** — backwards-compatible fixes
+- **MAJOR**: incompatible changes to the integration’s public surface (config entries, entities, services)
+- **MINOR**: backwards-compatible features
+- **PATCH**: backwards-compatible fixes
 
 `0.y.z` is initial development: the surface can still move. See [CHANGELOG.md](CHANGELOG.md).
 

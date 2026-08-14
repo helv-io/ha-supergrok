@@ -94,11 +94,11 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
                             options=[
                                 {
                                     "value": "device",
-                                    "label": "Device code (recommended — no paste, approve on any device)",
+                                    "label": "Device code (recommended: no paste, approve on any device)",
                                 },
                                 {
                                     "value": "browser",
-                                    "label": "Browser login (backup — paste the localhost callback URL)",
+                                    "label": "Browser login (backup: paste the localhost callback URL)",
                                 },
                             ],
                             mode=selector.SelectSelectorMode.LIST,

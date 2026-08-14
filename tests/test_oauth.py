@@ -60,7 +60,7 @@ def test_public_name_and_github_urls() -> None:
     assert manifest["name"] == "SuperGrok OAuth"
     assert manifest["documentation"] == "https://github.com/helv-io/ha-supergrok"
     assert manifest["issue_tracker"] == "https://github.com/helv-io/ha-supergrok/issues"
-    assert manifest["version"] == "0.3.1"
+    assert manifest["version"] == "0.3.2"
     assert hacs["name"] == "SuperGrok OAuth"
     assert "ha-grok-oauth" not in readme
     assert "repository=ha-supergrok" in readme

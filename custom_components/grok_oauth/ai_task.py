@@ -1,4 +1,4 @@
-"""AI Task entity — generate_data plus Imagine /v1/images/generations."""
+"""AI Task entity: generate_data plus Imagine /v1/images/generations."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Speech-to-text via POST /v1/stt — the HA surface that accepts Grok Voice STT."""
+"""Speech-to-text via POST /v1/stt: the HA surface that accepts Grok Voice STT."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class GrokSTTEntity(stt.SpeechToTextEntity):
 
     @property
     def supported_formats(self) -> list[stt.AudioFormats]:
-        """HA Voice satellites emit WAV/PCM or OGG/Opus — both are valid on /v1/stt."""
+        """HA Voice satellites emit WAV/PCM or OGG/Opus, both are valid on /v1/stt."""
         return [stt.AudioFormats.WAV, stt.AudioFormats.OGG]
 
     @property

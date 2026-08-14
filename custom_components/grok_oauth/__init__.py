@@ -1,4 +1,4 @@
-"""SuperGrok OAuth — SuperGrok login for Home Assistant conversation, voice, and Imagine."""
+"""SuperGrok OAuth: SuperGrok login for Home Assistant conversation, voice, and Imagine."""
 
 from __future__ import annotations
 
