@@ -83,20 +83,18 @@ Or: **Settings → Devices & services → Add integration → Grok OAuth**.
 
 ### Sign in
 
-xAI’s SuperGrok / Grok CLI public client only allows
+**Device code** is the default. Open the verification URL on any device, approve, and the form continues on its own — no paste.
+
+**Browser login** is the backup. xAI’s SuperGrok / Grok CLI public client only allows
 
 `http://127.0.0.1:56121/callback`
 
-It **rejects** My Home Assistant (`https://my.home-assistant.io/redirect/oauth`). That is why browser login asks you to paste a URL.
+It **rejects** My Home Assistant (`https://my.home-assistant.io/redirect/oauth`). That is why the browser path asks you to paste a URL.
 
-**Browser login**
-
-1. Choose **Browser login (paste the localhost callback URL)**.
+1. Choose **Browser login (backup — paste the localhost callback URL)**.
 2. Open the SuperGrok sign-in link and approve access.
 3. The browser goes to `http://127.0.0.1:56121/callback?...` and fails to connect. **That is expected** — nothing is listening on your computer.
 4. Copy the **full URL** from the address bar (it contains `code=`) and paste it into the form.
-
-**Device code** — no paste. Open the verification URL on any device, approve, and the form continues on its own.
 
 Then multi-select chat models, Voice, Realtime, and Imagine.
 
@@ -153,7 +151,7 @@ Diagnostics (⋮ on the integration card) include selected models, token expiry,
 ## Troubleshooting
 
 **`redirect_uri does not match any registered URI`**  
-You hit xAI with My Home Assistant as the callback. Use **0.2.1** or later and the paste-callback browser flow, or device code.
+You hit xAI with My Home Assistant as the callback. Use **device code** (the default), or **0.2.2** or later and the paste-callback browser backup.
 
 **Browser says the site can’t be reached after sign-in**  
 Expected. Copy `http://127.0.0.1:56121/callback?code=…` from the address bar and paste it back.

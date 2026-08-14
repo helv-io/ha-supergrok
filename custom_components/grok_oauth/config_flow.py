@@ -59,7 +59,7 @@ def _models_schema(defaults: list[str] | None = None) -> vol.Schema:
 
 
 class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
-    """SuperGrok login via loopback paste-callback, with device-code fallback."""
+    """SuperGrok login via device code, with loopback paste-callback backup."""
 
     DOMAIN = DOMAIN
     VERSION = 1
@@ -76,28 +76,28 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Choose browser paste-callback or device code."""
+        """Choose device code (default) or browser paste-callback backup."""
         if user_input is not None:
-            method = user_input.get("method") or "browser"
+            method = user_input.get("method") or "device"
             LOGGER.info("Starting SuperGrok login via %s", method)
-            if method == "device":
-                return await self.async_step_device()
-            return await self.async_step_browser()
+            if method == "browser":
+                return await self.async_step_browser()
+            return await self.async_step_device()
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required("method", default="browser"): selector.SelectSelector(
+                    vol.Required("method", default="device"): selector.SelectSelector(
                         selector.SelectSelectorConfig(
                             options=[
                                 {
-                                    "value": "browser",
-                                    "label": "Browser login (paste the localhost callback URL)",
+                                    "value": "device",
+                                    "label": "Device code (recommended — no paste, approve on any device)",
                                 },
                                 {
-                                    "value": "device",
-                                    "label": "Device code (no paste — approve on any device)",
+                                    "value": "browser",
+                                    "label": "Browser login (backup — paste the localhost callback URL)",
                                 },
                             ],
                             mode=selector.SelectSelectorMode.LIST,
@@ -105,6 +105,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
                     )
                 }
             ),
+            description_placeholders={"redirect_uri": OAUTH_REDIRECT_URI},
         )
 
     async def async_step_browser(
@@ -174,7 +175,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_device(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """RFC 8628 device-code fallback."""
+        """RFC 8628 device-code login (recommended)."""
         session = async_get_clientsession(self.hass)
         try:
             device = await request_device_authorization(session)

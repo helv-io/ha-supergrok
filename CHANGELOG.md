@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The integration version is `custom_components/grok_oauth/manifest.json` → `version`.
 
+## [0.2.2] - 2026-08-14
+
+### Changed
+
+- Device code is now the default SuperGrok sign-in. Browser / paste-the-localhost-callback is the backup.
+
 ## [0.2.1] - 2026-08-13
 
 ### Fixed
