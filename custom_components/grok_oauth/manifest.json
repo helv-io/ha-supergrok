@@ -1,15 +1,15 @@
 {
   "domain": "grok_oauth",
-  "name": "Grok OAuth",
+  "name": "SuperGrok OAuth",
   "codeowners": ["@helv-io"],
   "config_flow": true,
   "dependencies": ["conversation"],
-  "documentation": "https://github.com/helv-io/ha-grok-oauth",
+  "documentation": "https://github.com/helv-io/ha-supergrok",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/helv-io/ha-grok-oauth/issues",
+  "issue_tracker": "https://github.com/helv-io/ha-supergrok/issues",
   "loggers": ["custom_components.grok_oauth"],
   "quality_scale": "bronze",
   "requirements": [],
-  "version": "0.3.0"
+  "version": "0.3.1"
 }

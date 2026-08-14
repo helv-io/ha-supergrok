@@ -1,4 +1,4 @@
-"""Config flow for Grok OAuth."""
+"""Config flow for SuperGrok OAuth."""
 
 from __future__ import annotations
 
@@ -267,7 +267,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
                 or self._account.get("email")
                 or DEFAULT_NAME
             )
-            LOGGER.info("Creating Grok OAuth entry for %s models=%s", title, selected)
+            LOGGER.info("Creating SuperGrok OAuth entry for %s models=%s", title, selected)
             return self.async_create_entry(
                 title=f"Grok ({title})" if title != DEFAULT_NAME else DEFAULT_NAME,
                 data={

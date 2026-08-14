@@ -25,7 +25,7 @@ async def _register_services(hass: HomeAssistant) -> None:
 async def test_generate_content_rejects_unknown_entry(hass: HomeAssistant) -> None:
     """generate_content raises when the config entry id is not a Grok entry."""
     await _register_services(hass)
-    with pytest.raises(ServiceValidationError, match="Invalid Grok OAuth config entry"):
+    with pytest.raises(ServiceValidationError, match="Invalid SuperGrok OAuth config entry"):
         await hass.services.async_call(
             DOMAIN,
             SERVICE_GENERATE_CONTENT,
@@ -38,7 +38,7 @@ async def test_generate_content_rejects_unknown_entry(hass: HomeAssistant) -> No
 async def test_generate_image_rejects_unknown_entry(hass: HomeAssistant) -> None:
     """generate_image raises when the config entry id is not a Grok entry."""
     await _register_services(hass)
-    with pytest.raises(ServiceValidationError, match="Invalid Grok OAuth config entry"):
+    with pytest.raises(ServiceValidationError, match="Invalid SuperGrok OAuth config entry"):
         await hass.services.async_call(
             DOMAIN,
             SERVICE_GENERATE_IMAGE,

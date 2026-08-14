@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The integration version is `custom_components/grok_oauth/manifest.json` → `version`.
 
+## [0.3.1] - 2026-08-14
+
+### Changed
+
+- Public name and GitHub repository are now SuperGrok OAuth (`helv-io/ha-supergrok`). The Home Assistant domain remains `grok_oauth`.
+
 ## [0.3.0] - 2026-08-14
 
 ### Changed

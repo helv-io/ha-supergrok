@@ -3,7 +3,7 @@ generate_content:
   description: Send a prompt to a selected Grok chat model using the SuperGrok OAuth session.
   fields:
     config_entry:
-      name: Grok OAuth entry
+      name: SuperGrok OAuth entry
       required: true
       selector:
         config_entry:
@@ -25,7 +25,7 @@ generate_image:
   description: Generate an image with Grok Imagine via /v1/images/generations (and /v1/image/generations).
   fields:
     config_entry:
-      name: Grok OAuth entry
+      name: SuperGrok OAuth entry
       required: true
       selector:
         config_entry:
@@ -90,7 +90,7 @@ generate_image:
 #   description: Mint an ephemeral Grok Realtime client secret (POST /v1/realtime/client_secrets) for wss://api.x.ai/v1/realtime.
 #   fields:
 #     config_entry:
-#       name: Grok OAuth entry
+#       name: SuperGrok OAuth entry
 #       required: true
 #       selector:
 #         config_entry:

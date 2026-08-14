@@ -35,7 +35,7 @@
         }
       },
       "reauth_confirm": {
-        "title": "Reauthenticate Grok OAuth",
+        "title": "Reauthenticate SuperGrok OAuth",
         "description": "Your SuperGrok session expired or was revoked. Sign in again to keep using Grok in Home Assistant."
       }
     },
@@ -61,8 +61,8 @@
       "wrong_account": "You signed in with a different SuperGrok account.",
       "tier_blocked": "This SuperGrok account is not entitled to the OAuth API surface.",
       "aborted": "Login was cancelled.",
-      "missing_configuration": "Grok OAuth is missing its OAuth implementation.",
-      "missing_credentials": "Grok OAuth credentials are missing.",
+      "missing_configuration": "SuperGrok OAuth is missing its OAuth implementation.",
+      "missing_credentials": "SuperGrok OAuth credentials are missing.",
       "authorize_url_timeout": "Timed out creating the SuperGrok authorize URL.",
       "no_url_available": "No URL available to start OAuth.",
       "oauth_unauthorized": "xAI rejected the authorization code.",
@@ -89,7 +89,7 @@
       "name": "Generate content",
       "description": "Send a prompt to a Grok chat model using the SuperGrok OAuth session.",
       "fields": {
-        "config_entry": { "name": "Grok OAuth entry", "description": "Configured Grok OAuth integration." },
+        "config_entry": { "name": "SuperGrok OAuth entry", "description": "Configured SuperGrok OAuth integration." },
         "prompt": { "name": "Prompt", "description": "Text to send to Grok." },
         "model": { "name": "Model", "description": "Optional chat model override." }
       }
@@ -98,7 +98,7 @@
       "name": "Generate image",
       "description": "Generate an image with Grok Imagine.",
       "fields": {
-        "config_entry": { "name": "Grok OAuth entry", "description": "Configured Grok OAuth integration." },
+        "config_entry": { "name": "SuperGrok OAuth entry", "description": "Configured SuperGrok OAuth integration." },
         "prompt": { "name": "Prompt", "description": "Image description." },
         "model": { "name": "Imagine model", "description": "grok-imagine-image-2.0, grok-imagine-image, or grok-imagine-image-quality." },
         "n": { "name": "Number of images", "description": "How many images to generate." },

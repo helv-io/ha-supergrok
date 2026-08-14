@@ -105,7 +105,7 @@ class GrokAITaskEntity(ai_task.AITaskEntity):
     ) -> ai_task.GenImageTaskResult:
         """Handle generate_image via /v1/images/generations (and /v1/image/generations)."""
         if not self._image_model:
-            raise HomeAssistantError("No Imagine model is enabled on this Grok OAuth entry")
+            raise HomeAssistantError("No Imagine model is enabled on this SuperGrok OAuth entry")
         prompt = task.instructions or ""
         if not prompt:
             for content in reversed(chat_log.content):

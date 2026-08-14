@@ -1,4 +1,4 @@
-"""Redacted diagnostics for Grok OAuth."""
+"""Redacted diagnostics for SuperGrok OAuth."""
 
 from __future__ import annotations
 

@@ -1,23 +1,23 @@
 <p align="center">
-  <img src="custom_components/grok_oauth/brand/logo@2x.png" width="128" alt="Grok OAuth">
+  <img src="custom_components/grok_oauth/brand/logo@2x.png" width="128" alt="SuperGrok OAuth">
 </p>
 
-<h1 align="center">Grok OAuth</h1>
+<h1 align="center">SuperGrok OAuth</h1>
 
 <p align="center">
-  SuperGrok in Home Assistant — conversation, Voice, and Imagine.<br>
-  No <code>XAI_API_KEY</code>. Sign in with your SuperGrok or X Premium+ account.
+  Sign in with SuperGrok or X Premium+ — OAuth, no API key.<br>
+  Conversation, Voice, and Imagine in Home Assistant.
 </p>
 
 <p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=flat-square" alt="HACS Custom"></a>
   <a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2026.8+-18bcf2?style=flat-square&logo=home-assistant&logoColor=white" alt="Home Assistant 2026.8+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
-  <a href="https://github.com/helv-io/ha-grok-oauth/issues"><img src="https://img.shields.io/github/issues/helv-io/ha-grok-oauth?style=flat-square" alt="Issues"></a>
+  <a href="https://github.com/helv-io/ha-supergrok/issues"><img src="https://img.shields.io/github/issues/helv-io/ha-supergrok?style=flat-square" alt="Issues"></a>
 </p>
 
 <p align="center">
-  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=helv-io&repository=ha-grok-oauth&category=integration">
+  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=helv-io&repository=ha-supergrok&category=integration">
     <img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.">
   </a>
   &nbsp;
@@ -50,17 +50,17 @@ Realtime is not in this release.
 
 ### HACS (recommended)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=helv-io&repository=ha-grok-oauth&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=helv-io&repository=ha-supergrok&category=integration)
 
 1. Click the button — Home Assistant opens this repository in HACS.
-2. **Download** **Grok OAuth**.
+2. **Download** **SuperGrok OAuth**.
 3. Restart Home Assistant.
 
 No HACS yet? Install it from [hacs.xyz](https://hacs.xyz/docs/use/download/download/) first.
 
 **Manual HACS add**
 
-HACS → Integrations → ⋮ → **Custom repositories** → `https://github.com/helv-io/ha-grok-oauth` → category **Integration**.
+HACS → Integrations → ⋮ → **Custom repositories** → `https://github.com/helv-io/ha-supergrok` → category **Integration**.
 
 ### Manual
 
@@ -80,7 +80,7 @@ After the restart:
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=grok_oauth)
 
-Or: **Settings → Devices & services → Add integration → Grok OAuth**.
+Or: **Settings → Devices & services → Add integration → SuperGrok OAuth**.
 
 ### Sign in
 

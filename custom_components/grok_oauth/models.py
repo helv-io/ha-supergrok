@@ -1,4 +1,4 @@
-"""Model catalog for Grok OAuth."""
+"""Model catalog for SuperGrok OAuth."""
 
 from __future__ import annotations
 

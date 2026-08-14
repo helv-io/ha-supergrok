@@ -1,1 +1,1 @@
-"""Tests for the Grok OAuth Home Assistant integration."""
+"""Tests for the SuperGrok OAuth Home Assistant integration."""

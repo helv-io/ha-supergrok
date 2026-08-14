@@ -1,4 +1,4 @@
-"""Grok OAuth — SuperGrok login for Home Assistant conversation, voice, and Imagine."""
+"""SuperGrok OAuth — SuperGrok login for Home Assistant conversation, voice, and Imagine."""
 
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     def _entry_from_call(call: ServiceCall) -> GrokConfigEntry:
         entry = hass.config_entries.async_get_entry(call.data["config_entry"])
         if entry is None or entry.domain != DOMAIN:
-            raise ServiceValidationError(f"Invalid Grok OAuth config entry: {call.data['config_entry']}")
+            raise ServiceValidationError(f"Invalid SuperGrok OAuth config entry: {call.data['config_entry']}")
         return entry  # type: ignore[return-value]
 
     async def generate_content(call: ServiceCall) -> ServiceResponse:
@@ -108,7 +108,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def create_realtime_session(call: ServiceCall) -> ServiceResponse:
         entry = _entry_from_call(call)
         if not has_realtime(_selected(entry)):
-            raise ServiceValidationError("Realtime is not enabled on this Grok OAuth entry")
+            raise ServiceValidationError("Realtime is not enabled on this SuperGrok OAuth entry")
         client: GrokClient = entry.runtime_data
         model = call.data.get("model") or DEFAULT_REALTIME_MODEL
         secret = await client.create_realtime_client_secret(
@@ -177,11 +177,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool:
-    """Set up Grok OAuth from a config entry."""
+    """Set up SuperGrok OAuth from a config entry."""
     try:
         tokens = OAuthTokens.from_dict(dict(entry.data))
     except KeyError as err:
-        raise ConfigEntryAuthFailed("Grok OAuth tokens are missing") from err
+        raise ConfigEntryAuthFailed("SuperGrok OAuth tokens are missing") from err
 
     client = GrokClient(hass, tokens, persist=_persist(hass, entry))
     try:
@@ -195,7 +195,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     selected = _selected(entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     LOGGER.info(
-        "Grok OAuth %s ready account=%s chat=%s voice=%s realtime=%s imagine=%s "
+        "SuperGrok OAuth %s ready account=%s chat=%s voice=%s realtime=%s imagine=%s "
         "(enable debug logging for custom_components.grok_oauth to see request traces)",
         async_get_loaded_integration(hass, DOMAIN).version,
         entry.data.get("account_email") or entry.title,

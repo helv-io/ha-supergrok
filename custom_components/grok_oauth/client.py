@@ -108,7 +108,7 @@ class GrokClient:
                 self._note(f"refresh_failed:{err.reason}")
                 if err.reason in ("reauth_required", "tier_blocked"):
                     raise ConfigEntryAuthFailed(err.details or err.reason) from err
-                raise HomeAssistantError(f"Grok OAuth refresh failed: {err.details or err.reason}") from err
+                raise HomeAssistantError(f"SuperGrok OAuth refresh failed: {err.details or err.reason}") from err
             self._tokens = refreshed
             if self._persist:
                 result = self._persist(refreshed)
@@ -244,7 +244,7 @@ class GrokClient:
                     continue
 
         if last_status in (401, 403):
-            raise ConfigEntryAuthFailed(last_body or "Grok OAuth token was rejected")
+            raise ConfigEntryAuthFailed(last_body or "SuperGrok OAuth token was rejected")
         raise HomeAssistantError(
             f"Grok request failed on every endpoint ({last_status or 'network'}): "
             f"{last_body or last_error}"

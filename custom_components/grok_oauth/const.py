@@ -1,4 +1,4 @@
-"""Constants for Grok OAuth."""
+"""Constants for SuperGrok OAuth."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ DOMAIN: Final = "grok_oauth"
 LOGGER = logging.getLogger(__package__)
 # Settings → System → Logs → custom_components.grok_oauth = debug
 
-DEFAULT_NAME: Final = "Grok OAuth"
+DEFAULT_NAME: Final = "SuperGrok OAuth"
 DEFAULT_CONVERSATION_NAME: Final = "Grok Conversation"
 DEFAULT_AI_TASK_NAME: Final = "Grok AI Task"
 DEFAULT_TTS_NAME: Final = "Grok Voice TTS"

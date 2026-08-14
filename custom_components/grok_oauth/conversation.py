@@ -1,4 +1,4 @@
-"""Conversation agents for Grok OAuth."""
+"""Conversation agents for SuperGrok OAuth."""
 
 from __future__ import annotations
 

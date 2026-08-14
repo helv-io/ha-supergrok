@@ -1,4 +1,4 @@
-"""Shared fixtures for Grok OAuth tests."""
+"""Shared fixtures for SuperGrok OAuth tests."""
 
 from __future__ import annotations
 

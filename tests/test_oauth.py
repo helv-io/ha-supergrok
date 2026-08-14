@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from custom_components.grok_oauth.const import (
     CHAT_API_BASES,
+    DEFAULT_NAME,
     DOMAIN,
     OAUTH_CLIENT_ID,
     OAUTH_REDIRECT_URI,
@@ -24,6 +27,8 @@ from custom_components.grok_oauth.oauth import (
     tokens_from_payload,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def test_public_contract_is_unchanged() -> None:
     """Domain, OAuth client, loopback redirect, proxy order, and services stay put."""
@@ -38,6 +43,28 @@ def test_public_contract_is_unchanged() -> None:
     assert SERVICE_GENERATE_IMAGE == "generate_image"
     assert SERVICE_CREATE_REALTIME_SESSION == "create_realtime_session"
     assert REALTIME_ENABLED is False
+    assert DEFAULT_NAME == "SuperGrok OAuth"
+
+
+def test_public_name_and_github_urls() -> None:
+    """Display name and GitHub URLs follow the ha-supergrok rename."""
+    manifest = json.loads(
+        (ROOT / "custom_components" / "grok_oauth" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert manifest["domain"] == "grok_oauth"
+    assert manifest["name"] == "SuperGrok OAuth"
+    assert manifest["documentation"] == "https://github.com/helv-io/ha-supergrok"
+    assert manifest["issue_tracker"] == "https://github.com/helv-io/ha-supergrok/issues"
+    assert manifest["version"] == "0.3.1"
+    assert hacs["name"] == "SuperGrok OAuth"
+    assert "ha-grok-oauth" not in readme
+    assert "repository=ha-supergrok" in readme
+    assert "<h1 align=\"center\">SuperGrok OAuth</h1>" in readme
 
 
 def test_parse_full_callback_url() -> None:
