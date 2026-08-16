@@ -76,6 +76,9 @@ CONF_REALTIME_MODEL: Final = "realtime_model"
 CONF_TTS_VOICE: Final = "tts_voice"
 CONF_LLM_CONTROL: Final = "llm_control"
 
+SUBENTRY_TYPE_CONVERSATION: Final = "conversation"
+SUBENTRY_TYPE_AI_TASK: Final = "ai_task_data"
+
 MODEL_VOICE: Final = "voice"
 MODEL_REALTIME: Final = "realtime"
 

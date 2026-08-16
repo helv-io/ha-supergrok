@@ -9,6 +9,10 @@ The integration version is `custom_components/grok_oauth/manifest.json` → `ver
 
 ## [Unreleased]
 
+### Added
+
+- Conversation and AI Task config subentries (Home Assistant `ConfigSubentryFlow`, same shape as official OpenAI Conversation). After login, Add → Conversation lets you name an agent, edit its system prompt (template), choose Control Home Assistant, and pick a chat model. Existing installs that only have `selected_models` / entry-level `prompt` keep working: they are migrated to subentries (or fall back) so current Grok conversation entities still appear and still use the stored prompt.
+
 ### Changed
 
 - README rewritten for Home Assistant consumers (SpaceXAI, official HA building-block links).

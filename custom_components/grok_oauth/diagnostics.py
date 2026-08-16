@@ -8,7 +8,7 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_SELECTED_MODELS
+from .const import CONF_CHAT_MODEL, CONF_SELECTED_MODELS
 from .models import chat_models, first_image_model, has_realtime, has_voice
 
 TO_REDACT = {
@@ -36,6 +36,14 @@ async def async_get_config_entry_diagnostics(
         "voice": has_voice(selected),
         "realtime": has_realtime(selected),
         "imagine": first_image_model(selected),
+        "subentries": [
+            {
+                "type": subentry.subentry_type,
+                "title": subentry.title,
+                "chat_model": subentry.data.get(CONF_CHAT_MODEL),
+            }
+            for subentry in entry.subentries.values()
+        ],
         "token_expires_at": entry.data.get("expires_at"),
     }
     if client is not None:

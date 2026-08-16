@@ -3,16 +3,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT
+from homeassistant.helpers import llm
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 
 from .const import (
+    CONF_CHAT_MODEL,
+    CONF_IMAGE_MODEL,
+    CONF_SELECTED_MODELS,
+    DEFAULT_AI_TASK_NAME,
     DEFAULT_CHAT_MODEL,
+    DEFAULT_CONVERSATION_NAME,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_REALTIME_MODEL,
     DEFAULT_VOICE_MODEL,
     MODEL_REALTIME,
     MODEL_VOICE,
     REALTIME_ENABLED,
+    SUBENTRY_TYPE_AI_TASK,
+    SUBENTRY_TYPE_CONVERSATION,
 )
 
 Kind = Literal["chat", "voice", "realtime", "image"]
@@ -196,3 +209,106 @@ def resolve_realtime_model(selected: list[str] | tuple[str, ...]) -> str:
 def resolve_voice_model(selected: list[str] | tuple[str, ...]) -> str:
     """Return the voice-agent model slug."""
     return DEFAULT_VOICE_MODEL
+
+
+def chat_model_options() -> list[dict[str, str]]:
+    """Return selector options for conversation / AI Task chat models."""
+    return [
+        {"value": model.id, "label": model.label}
+        for model in MODEL_CATALOG
+        if model.kind == "chat"
+    ]
+
+
+def image_model_options() -> list[dict[str, str]]:
+    """Return selector options for Imagine models."""
+    return [
+        {"value": model.id, "label": model.label}
+        for model in MODEL_CATALOG
+        if model.kind == "image"
+    ]
+
+
+def conversation_subentry_data(
+    model: str,
+    *,
+    prompt: str | None = None,
+    llm_apis: list[str] | None = None,
+) -> dict[str, object]:
+    """Return data stored on a conversation subentry."""
+    return {
+        CONF_CHAT_MODEL: model,
+        CONF_PROMPT: prompt if prompt is not None else llm.DEFAULT_INSTRUCTIONS_PROMPT,
+        CONF_LLM_HASS_API: list(llm_apis) if llm_apis is not None else [llm.LLM_API_ASSIST],
+    }
+
+
+def config_option(
+    entry: ConfigEntry,
+    subentry: ConfigSubentry | None,
+    key: str,
+    default: Any = None,
+) -> Any:
+    """Read a setting from the subentry, then the parent entry."""
+    if subentry is not None and key in subentry.data:
+        return subentry.data[key]
+    return entry.data.get(key, default)
+
+
+def conversation_agent_specs(
+    entry: ConfigEntry,
+) -> list[tuple[ConfigSubentry | None, str, bool]]:
+    """Return (subentry, model, default_agent) for each conversation entity.
+
+    Prefer conversation subentries. Fall back to CONF_SELECTED_MODELS so
+    pre-subentry installs keep their Grok agents.
+    """
+    subentries = entry.get_subentries_of_type(SUBENTRY_TYPE_CONVERSATION)
+    if subentries:
+        return [
+            (
+                subentry,
+                str(subentry.data.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL)),
+                index == 0,
+            )
+            for index, subentry in enumerate(subentries)
+        ]
+    selected = entry.data.get(CONF_SELECTED_MODELS, [DEFAULT_CHAT_MODEL])
+    chats = chat_models(selected) or [DEFAULT_CHAT_MODEL]
+    return [(None, model, index == 0) for index, model in enumerate(chats)]
+
+
+def build_initial_subentries(
+    selected: list[str] | tuple[str, ...],
+    *,
+    prompt: str | None = None,
+    llm_apis: list[str] | None = None,
+) -> list[dict[str, object]]:
+    """Mint default conversation + AI Task subentries from the model picker."""
+    chats = chat_models(selected) or [DEFAULT_CHAT_MODEL]
+    image = first_image_model(selected)
+    subentries: list[dict[str, object]] = []
+    for model in chats:
+        catalog = CATALOG_BY_ID.get(model)
+        subentries.append(
+            {
+                "subentry_type": SUBENTRY_TYPE_CONVERSATION,
+                "data": conversation_subentry_data(
+                    model, prompt=prompt, llm_apis=llm_apis
+                ),
+                "title": catalog.label if catalog else DEFAULT_CONVERSATION_NAME,
+                "unique_id": None,
+            }
+        )
+    ai_task_data: dict[str, object] = {CONF_CHAT_MODEL: chats[0]}
+    if image:
+        ai_task_data[CONF_IMAGE_MODEL] = image
+    subentries.append(
+        {
+            "subentry_type": SUBENTRY_TYPE_AI_TASK,
+            "data": ai_task_data,
+            "title": DEFAULT_AI_TASK_NAME,
+            "unique_id": None,
+        }
+    )
+    return subentries

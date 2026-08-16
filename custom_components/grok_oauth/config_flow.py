@@ -9,12 +9,16 @@ import voluptuous as vol
 
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
+    ConfigSubentryFlow,
     OptionsFlow,
     SOURCE_REAUTH,
+    SubentryFlowResult,
 )
-from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT
+from homeassistant.const import CONF_LLM_HASS_API, CONF_NAME, CONF_PROMPT
+from homeassistant.core import callback
 from homeassistant.helpers import llm, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -22,13 +26,29 @@ from .const import (
     CONF_ACCOUNT_EMAIL,
     CONF_ACCOUNT_ID,
     CONF_ACCOUNT_NAME,
+    CONF_CHAT_MODEL,
+    CONF_IMAGE_MODEL,
     CONF_SELECTED_MODELS,
+    DEFAULT_AI_TASK_NAME,
+    DEFAULT_CHAT_MODEL,
+    DEFAULT_CONVERSATION_NAME,
     DEFAULT_NAME,
     DOMAIN,
     LOGGER,
     OAUTH_REDIRECT_URI,
+    SUBENTRY_TYPE_AI_TASK,
+    SUBENTRY_TYPE_CONVERSATION,
 )
-from .models import DEFAULT_SELECTED_MODELS, picker_options, without_withheld_models
+from .models import (
+    DEFAULT_SELECTED_MODELS,
+    build_initial_subentries,
+    chat_model_options,
+    chat_models,
+    first_image_model,
+    image_model_options,
+    picker_options,
+    without_withheld_models,
+)
 from .oauth import (
     GrokOAuthError,
     build_authorize_url,
@@ -63,7 +83,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
     """SuperGrok login via device code, with loopback paste-callback backup."""
 
     DOMAIN = DOMAIN
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         self._tokens: dict[str, Any] | None = None
@@ -268,6 +288,8 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
                 or DEFAULT_NAME
             )
             LOGGER.info("Creating SuperGrok OAuth entry for %s models=%s", title, selected)
+            prompt = llm.DEFAULT_INSTRUCTIONS_PROMPT
+            llm_apis = [llm.LLM_API_ASSIST]
             return self.async_create_entry(
                 title=f"Grok ({title})" if title != DEFAULT_NAME else DEFAULT_NAME,
                 data={
@@ -276,9 +298,12 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_ACCOUNT_EMAIL: self._account.get("email"),
                     CONF_ACCOUNT_NAME: self._account.get("name"),
                     CONF_SELECTED_MODELS: selected,
-                    CONF_LLM_HASS_API: [llm.LLM_API_ASSIST],
-                    CONF_PROMPT: llm.DEFAULT_INSTRUCTIONS_PROMPT,
+                    CONF_LLM_HASS_API: llm_apis,
+                    CONF_PROMPT: prompt,
                 },
+                subentries=build_initial_subentries(
+                    selected, prompt=prompt, llm_apis=llm_apis
+                ),
             )
 
         return self.async_show_form(step_id="models", data_schema=_models_schema())
@@ -300,6 +325,17 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         """Return the options flow for the model picker."""
         return GrokOAuthOptionsFlow()
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Return Conversation and AI Task subentries (OpenAI Conversation shape)."""
+        return {
+            SUBENTRY_TYPE_CONVERSATION: GrokSubentryFlowHandler,
+            SUBENTRY_TYPE_AI_TASK: GrokSubentryFlowHandler,
+        }
 
 
 class GrokOAuthOptionsFlow(OptionsFlow):
@@ -331,3 +367,145 @@ class GrokOAuthOptionsFlow(OptionsFlow):
             return self.async_create_entry(title="", data={CONF_SELECTED_MODELS: selected})
 
         return self.async_show_form(step_id="init", data_schema=_models_schema(current))
+
+
+class GrokSubentryFlowHandler(ConfigSubentryFlow):
+    """Add or reconfigure a Conversation agent or AI Task (OpenAI pattern)."""
+
+    @property
+    def _is_new(self) -> bool:
+        """Return whether this flow is creating a subentry."""
+        return self.source == "user"
+
+    def _suggested(self) -> dict[str, Any]:
+        """Defaults for a new subentry, or the current subentry data."""
+        if not self._is_new:
+            return dict(self._get_reconfigure_subentry().data)
+        entry = self._get_entry()
+        selected = without_withheld_models(
+            entry.data.get(CONF_SELECTED_MODELS, DEFAULT_SELECTED_MODELS)
+        )
+        chats = chat_models(selected)
+        suggested: dict[str, Any] = {
+            CONF_CHAT_MODEL: chats[0] if chats else DEFAULT_CHAT_MODEL,
+        }
+        if self._subentry_type == SUBENTRY_TYPE_AI_TASK:
+            if image := first_image_model(selected):
+                suggested[CONF_IMAGE_MODEL] = image
+            return suggested
+        suggested[CONF_PROMPT] = entry.data.get(
+            CONF_PROMPT, llm.DEFAULT_INSTRUCTIONS_PROMPT
+        )
+        suggested[CONF_LLM_HASS_API] = entry.data.get(
+            CONF_LLM_HASS_API, [llm.LLM_API_ASSIST]
+        )
+        return suggested
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Add a subentry."""
+        return await self.async_step_init(user_input)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Reconfigure an existing subentry, including the system prompt."""
+        return await self.async_step_init(user_input)
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Name, prompt, Control Home Assistant, and chat model."""
+        if self._get_entry().state is not ConfigEntryState.LOADED:
+            return self.async_abort(reason="entry_not_loaded")
+
+        suggested = self._suggested()
+        if user_input is not None:
+            if not user_input.get(CONF_LLM_HASS_API):
+                user_input.pop(CONF_LLM_HASS_API, None)
+            if self._subentry_type == SUBENTRY_TYPE_CONVERSATION:
+                user_input.setdefault(
+                    CONF_PROMPT,
+                    suggested.get(CONF_PROMPT, llm.DEFAULT_INSTRUCTIONS_PROMPT),
+                )
+            if self._is_new:
+                return self.async_create_entry(
+                    title=user_input.pop(CONF_NAME),
+                    data=user_input,
+                )
+            return self.async_update_and_abort(
+                self._get_entry(),
+                self._get_reconfigure_subentry(),
+                data=user_input,
+            )
+
+        hass_apis = [
+            selector.SelectOptionDict(label=api.name, value=api.id)
+            for api in llm.async_get_apis(self.hass)
+        ]
+        if suggested_llm := suggested.get(CONF_LLM_HASS_API):
+            if isinstance(suggested_llm, str):
+                suggested_llm = [suggested_llm]
+            valid = {api.id for api in llm.async_get_apis(self.hass)}
+            suggested[CONF_LLM_HASS_API] = [api for api in suggested_llm if api in valid]
+
+        schema: dict[Any, Any] = {}
+        if self._is_new:
+            default_name = (
+                DEFAULT_AI_TASK_NAME
+                if self._subentry_type == SUBENTRY_TYPE_AI_TASK
+                else DEFAULT_CONVERSATION_NAME
+            )
+            schema[vol.Required(CONF_NAME, default=default_name)] = str
+
+        if self._subentry_type == SUBENTRY_TYPE_CONVERSATION:
+            schema.update(
+                {
+                    vol.Optional(
+                        CONF_PROMPT,
+                        description={
+                            "suggested_value": suggested.get(
+                                CONF_PROMPT, llm.DEFAULT_INSTRUCTIONS_PROMPT
+                            )
+                        },
+                    ): selector.TemplateSelector(),
+                    vol.Optional(CONF_LLM_HASS_API): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=hass_apis, multiple=True)
+                    ),
+                }
+            )
+
+        schema[
+            vol.Required(
+                CONF_CHAT_MODEL,
+                default=suggested.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL),
+            )
+        ] = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=chat_model_options(),
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        )
+
+        if self._subentry_type == SUBENTRY_TYPE_AI_TASK:
+            schema[
+                vol.Optional(
+                    CONF_IMAGE_MODEL,
+                    description={
+                        "suggested_value": suggested.get(CONF_IMAGE_MODEL),
+                    },
+                )
+            ] = selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=image_model_options(),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(schema), suggested
+            ),
+        )

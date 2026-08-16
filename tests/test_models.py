@@ -8,9 +8,12 @@ from custom_components.grok_oauth.const import (
     MODEL_REALTIME,
     MODEL_VOICE,
     REALTIME_ENABLED,
+    SUBENTRY_TYPE_AI_TASK,
+    SUBENTRY_TYPE_CONVERSATION,
 )
 from custom_components.grok_oauth.models import (
     DEFAULT_SELECTED_MODELS,
+    build_initial_subentries,
     has_realtime,
     picker_options,
     without_withheld_models,
@@ -35,3 +38,21 @@ def test_has_realtime_stays_off_when_legacy_config_lists_it() -> None:
         "grok-4.6",
         "voice",
     ]
+
+
+def test_build_initial_subentries_covers_chat_and_ai_task() -> None:
+    """First-time setup mints one conversation per chat model plus AI Task."""
+    subentries = build_initial_subentries(
+        ["grok-4.6", "grok-4.5", "voice", DEFAULT_IMAGE_MODEL],
+        prompt="Hello",
+    )
+    types = [item["subentry_type"] for item in subentries]
+    assert types == [
+        SUBENTRY_TYPE_CONVERSATION,
+        SUBENTRY_TYPE_CONVERSATION,
+        SUBENTRY_TYPE_AI_TASK,
+    ]
+    assert subentries[0]["data"]["chat_model"] == "grok-4.6"
+    assert subentries[0]["data"]["prompt"] == "Hello"
+    assert subentries[1]["data"]["chat_model"] == "grok-4.5"
+    assert subentries[2]["data"]["image_model"] == DEFAULT_IMAGE_MODEL

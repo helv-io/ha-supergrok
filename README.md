@@ -51,6 +51,12 @@ Device code is the default. Open the verification URL on any device and approve.
 
 Browser login is the backup (paste the localhost callback). After you approve, the browser opens `http://127.0.0.1:56121/callback` and says the site can't be reached. That is expected: copy the full URL from the address bar and paste it into the form.
 
+## Conversation agents
+
+After SuperGrok is set up, open the integration and use **Add → Conversation** to create an agent. Each agent has its own name, system prompt (template), Control Home Assistant setting, and chat model. Reconfigure an agent to edit the prompt.
+
+Existing installs that only picked models on the main entry keep their Grok conversation entities and the stored prompt.
+
 ## Voice
 
 Point [Assist](https://www.home-assistant.io/voice_control/) at Grok Voice STT, a Grok conversation agent, and Grok Voice TTS.

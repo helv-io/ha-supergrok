@@ -5,17 +5,27 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlparse
 
-from homeassistant.config_entries import SOURCE_USER
+from homeassistant.config_entries import SOURCE_USER, ConfigEntryState
+from homeassistant.const import CONF_LLM_HASS_API, CONF_NAME, CONF_PROMPT
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import llm
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.grok_oauth.config_flow import GrokOAuthConfigFlow
+from custom_components.grok_oauth.config_flow import (
+    GrokOAuthConfigFlow,
+    GrokSubentryFlowHandler,
+)
 from custom_components.grok_oauth.const import (
+    CONF_CHAT_MODEL,
     CONF_SELECTED_MODELS,
+    DEFAULT_AI_TASK_NAME,
     DOMAIN,
     MODEL_REALTIME,
     OAUTH_CLIENT_ID,
     OAUTH_REDIRECT_URI,
+    SUBENTRY_TYPE_AI_TASK,
+    SUBENTRY_TYPE_CONVERSATION,
 )
 from custom_components.grok_oauth.oauth import GrokOAuthError, OAuthTokens
 
@@ -228,4 +238,154 @@ async def test_browser_success_creates_entry(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"]["access_token"] == "test-access-token"
     assert result["data"][CONF_SELECTED_MODELS] == ["grok-4.6", "voice"]
+    assert result["data"][CONF_PROMPT] == llm.DEFAULT_INSTRUCTIONS_PROMPT
+    assert result["data"][CONF_LLM_HASS_API] == [llm.LLM_API_ASSIST]
     assert flow.unique_id == "acct-1"
+    subentries = list(result["subentries"])
+    assert [item["subentry_type"] for item in subentries] == [
+        SUBENTRY_TYPE_CONVERSATION,
+        SUBENTRY_TYPE_AI_TASK,
+    ]
+    assert subentries[0]["data"][CONF_CHAT_MODEL] == "grok-4.6"
+    assert subentries[0]["data"][CONF_PROMPT] == llm.DEFAULT_INSTRUCTIONS_PROMPT
+    assert subentries[0]["data"][CONF_LLM_HASS_API] == [llm.LLM_API_ASSIST]
+    assert subentries[1]["title"] == DEFAULT_AI_TASK_NAME
+
+
+async def test_supported_subentry_types_include_conversation(hass: HomeAssistant) -> None:
+    """The integration page can Add a Conversation (and AI Task) subentry."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_SELECTED_MODELS: ["grok-4.6"]})
+    supported = GrokOAuthConfigFlow.async_get_supported_subentry_types(entry)
+    assert SUBENTRY_TYPE_CONVERSATION in supported
+    assert SUBENTRY_TYPE_AI_TASK in supported
+
+
+def _loaded_entry(hass: HomeAssistant) -> MockConfigEntry:
+    """A loaded SuperGrok entry with one conversation subentry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Grok (user@example.com)",
+        unique_id="acct-1",
+        version=2,
+        state=ConfigEntryState.LOADED,
+        data={
+            "access_token": "token",
+            CONF_SELECTED_MODELS: ["grok-4.6", "voice"],
+            CONF_PROMPT: "Entry-level prompt",
+            CONF_LLM_HASS_API: [llm.LLM_API_ASSIST],
+        },
+        subentries_data=[
+            {
+                "data": {
+                    CONF_CHAT_MODEL: "grok-4.6",
+                    CONF_PROMPT: "Old prompt",
+                    CONF_LLM_HASS_API: [llm.LLM_API_ASSIST],
+                },
+                "subentry_type": SUBENTRY_TYPE_CONVERSATION,
+                "title": "Grok 4.6",
+                "unique_id": None,
+            }
+        ],
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+def _subentry_flow(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    *,
+    source: str = SOURCE_USER,
+    subentry_type: str = SUBENTRY_TYPE_CONVERSATION,
+    subentry_id: str | None = None,
+) -> GrokSubentryFlowHandler:
+    """Build a subentry flow without loading the conversation dependency."""
+    flow = GrokSubentryFlowHandler()
+    flow.hass = hass
+    flow.handler = (entry.entry_id, subentry_type)
+    flow.context = {"source": source, "subentry_type": subentry_type}
+    if subentry_id:
+        flow.context["subentry_id"] = subentry_id
+    return flow
+
+
+async def test_create_conversation_subentry(hass: HomeAssistant) -> None:
+    """Add a conversation agent with name, prompt, Control Home Assistant, and model."""
+    entry = _loaded_entry(hass)
+    flow = _subentry_flow(hass, entry)
+
+    result = await flow.async_step_user()
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+    schema_keys = {
+        getattr(key, "schema", None) for key in result["data_schema"].schema
+    }
+    assert CONF_NAME in schema_keys
+    assert CONF_PROMPT in schema_keys
+    assert CONF_LLM_HASS_API in schema_keys
+    assert CONF_CHAT_MODEL in schema_keys
+
+    result = await flow.async_step_user(
+        {
+            CONF_NAME: "Pirate Grok",
+            CONF_PROMPT: "Speak like a pirate",
+            CONF_LLM_HASS_API: [llm.LLM_API_ASSIST],
+            CONF_CHAT_MODEL: "grok-4.5",
+        }
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Pirate Grok"
+    assert result["data"][CONF_PROMPT] == "Speak like a pirate"
+    assert result["data"][CONF_CHAT_MODEL] == "grok-4.5"
+    assert result["data"][CONF_LLM_HASS_API] == [llm.LLM_API_ASSIST]
+
+
+async def test_reconfigure_conversation_subentry_edits_prompt(
+    hass: HomeAssistant,
+) -> None:
+    """Reconfigure can change CONF_PROMPT on an existing conversation subentry."""
+    entry = _loaded_entry(hass)
+    subentry = next(iter(entry.subentries.values()))
+    flow = _subentry_flow(
+        hass,
+        entry,
+        source="reconfigure",
+        subentry_id=subentry.subentry_id,
+    )
+
+    result = await flow.async_step_reconfigure()
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+    schema_keys = {
+        getattr(key, "schema", None) for key in result["data_schema"].schema
+    }
+    assert CONF_PROMPT in schema_keys
+    assert CONF_NAME not in schema_keys
+
+    result = await flow.async_step_reconfigure(
+        {
+            CONF_PROMPT: "Speak like a pirate",
+            CONF_LLM_HASS_API: [llm.LLM_API_ASSIST],
+            CONF_CHAT_MODEL: "grok-4.6",
+        }
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    updated = entry.subentries[subentry.subentry_id]
+    assert updated.data[CONF_PROMPT] == "Speak like a pirate"
+
+
+async def test_create_conversation_subentry_not_loaded(hass: HomeAssistant) -> None:
+    """Adding a conversation subentry aborts when the parent entry is not loaded."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SELECTED_MODELS: ["grok-4.6"]},
+        version=2,
+        state=ConfigEntryState.NOT_LOADED,
+    )
+    entry.add_to_hass(hass)
+    flow = _subentry_flow(hass, entry)
+
+    result = await flow.async_step_user()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "entry_not_loaded"

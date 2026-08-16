@@ -6,7 +6,7 @@ from json import JSONDecodeError
 from typing import TYPE_CHECKING
 
 from homeassistant.components import ai_task, conversation
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
@@ -19,12 +19,12 @@ from .const import (
     CONF_SELECTED_MODELS,
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CHAT_MODEL,
-    DEFAULT_IMAGE_MODEL,
     DOMAIN,
     LOGGER,
+    SUBENTRY_TYPE_AI_TASK,
 )
 from .helpers import async_run_chat_log
-from .models import chat_models, first_image_model
+from .models import chat_models, config_option, first_image_model
 
 if TYPE_CHECKING:
     from .client import GrokClient
@@ -35,7 +35,15 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up the Grok AI Task entity."""
+    """Set up Grok AI Task entities from subentries, or one legacy entity."""
+    ai_task_subentries = config_entry.get_subentries_of_type(SUBENTRY_TYPE_AI_TASK)
+    if ai_task_subentries:
+        for subentry in ai_task_subentries:
+            async_add_entities(
+                [GrokAITaskEntity(config_entry, subentry=subentry)],
+                config_subentry_id=subentry.subentry_id,
+            )
+        return
     async_add_entities([GrokAITaskEntity(config_entry)])
 
 
@@ -45,16 +53,30 @@ class GrokAITaskEntity(ai_task.AITaskEntity):
     _attr_has_entity_name = True
     _attr_name = DEFAULT_AI_TASK_NAME
 
-    def __init__(self, entry: ConfigEntry) -> None:
+    def __init__(
+        self, entry: ConfigEntry, *, subentry: ConfigSubentry | None = None
+    ) -> None:
         self.entry = entry
+        self.subentry = subentry
         selected = entry.data.get(CONF_SELECTED_MODELS, [DEFAULT_CHAT_MODEL])
         chats = chat_models(selected)
-        self._chat_model = entry.data.get(CONF_CHAT_MODEL) or (chats[0] if chats else DEFAULT_CHAT_MODEL)
-        self._image_model = entry.data.get(CONF_IMAGE_MODEL) or first_image_model(selected)
-        self._attr_unique_id = f"{entry.entry_id}_ai_task"
+        default_chat = entry.data.get(CONF_CHAT_MODEL) or (
+            chats[0] if chats else DEFAULT_CHAT_MODEL
+        )
+        self._chat_model = config_option(entry, subentry, CONF_CHAT_MODEL, default_chat)
+        self._image_model = config_option(
+            entry, subentry, CONF_IMAGE_MODEL, first_image_model(selected)
+        )
+        if subentry is not None:
+            self._attr_unique_id = subentry.subentry_id
+            self._attr_name = None
+            device_name = subentry.title or DEFAULT_AI_TASK_NAME
+        else:
+            self._attr_unique_id = f"{entry.entry_id}_ai_task"
+            device_name = DEFAULT_AI_TASK_NAME
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, self._attr_unique_id)},
-            name=DEFAULT_AI_TASK_NAME,
+            name=device_name,
             manufacturer="xAI",
             model=self._chat_model,
             entry_type=dr.DeviceEntryType.SERVICE,

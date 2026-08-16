@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from homeassistant.components import conversation
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -22,7 +22,7 @@ from .const import (
     REALTIME_ENABLED,
 )
 from .helpers import async_run_chat_log
-from .models import CATALOG_BY_ID, chat_models, has_realtime
+from .models import CATALOG_BY_ID, config_option, conversation_agent_specs, has_realtime
 
 if TYPE_CHECKING:
     from .client import GrokClient
@@ -33,28 +33,37 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up one conversation entity per selected chat model."""
-    selected = config_entry.data.get(CONF_SELECTED_MODELS, [DEFAULT_CHAT_MODEL])
-    chats = chat_models(selected)
-    entities: list[conversation.ConversationEntity] = [
-        GrokConversationEntity(config_entry, model, realtime=False, default_agent=(index == 0))
-        for index, model in enumerate(chats)
-    ]
-    if REALTIME_ENABLED and has_realtime(selected):
-        entities.append(
-            GrokConversationEntity(
-                config_entry,
-                "grok-voice-latest",
-                realtime=True,
-                default_agent=not chats,
-            )
+    """Set up one conversation entity per conversation subentry, or legacy models."""
+    specs = conversation_agent_specs(config_entry)
+    legacy: list[conversation.ConversationEntity] = []
+    for subentry, model, default_agent in specs:
+        entity = GrokConversationEntity(
+            config_entry,
+            model,
+            subentry=subentry,
+            default_agent=default_agent,
         )
-    if not entities:
-        entities.append(
-            GrokConversationEntity(config_entry, DEFAULT_CHAT_MODEL, realtime=False, default_agent=True)
+        if subentry is not None:
+            async_add_entities([entity], config_subentry_id=subentry.subentry_id)
+        else:
+            legacy.append(entity)
+    if legacy:
+        LOGGER.debug("Setting up %s legacy Grok conversation entities", len(legacy))
+        async_add_entities(legacy)
+
+    if REALTIME_ENABLED and has_realtime(
+        config_entry.data.get(CONF_SELECTED_MODELS, [])
+    ):
+        async_add_entities(
+            [
+                GrokConversationEntity(
+                    config_entry,
+                    "grok-voice-latest",
+                    realtime=True,
+                    default_agent=not specs,
+                )
+            ]
         )
-    LOGGER.debug("Setting up %s Grok conversation entities", len(entities))
-    async_add_entities(entities)
 
 
 class GrokConversationEntity(
@@ -67,24 +76,50 @@ class GrokConversationEntity(
     _attr_supports_streaming = False
 
     def __init__(
-        self, entry: ConfigEntry, model: str, *, realtime: bool, default_agent: bool = False
+        self,
+        entry: ConfigEntry,
+        model: str | None = None,
+        *,
+        subentry: ConfigSubentry | None = None,
+        realtime: bool = False,
+        default_agent: bool = False,
     ) -> None:
         self.entry = entry
-        self._model = model
+        self.subentry = subentry
         self._realtime = realtime
         self._default_agent = default_agent
-        self._attr_unique_id = f"{entry.entry_id}_{'realtime' if realtime else model}"
-        catalog = CATALOG_BY_ID.get(model)
-        self._attr_name = DEFAULT_REALTIME_NAME if realtime else (catalog.label if catalog else f"Grok {model}")
+        if subentry is not None:
+            self._model = str(
+                config_option(entry, subentry, CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL)
+            )
+            self._attr_unique_id = subentry.subentry_id
+            self._attr_name = subentry.title
+        else:
+            self._model = model or DEFAULT_CHAT_MODEL
+            self._attr_unique_id = f"{entry.entry_id}_{'realtime' if realtime else self._model}"
+            catalog = CATALOG_BY_ID.get(self._model)
+            self._attr_name = (
+                DEFAULT_REALTIME_NAME
+                if realtime
+                else (catalog.label if catalog else f"Grok {self._model}")
+            )
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, self._attr_unique_id)},
             name=self._attr_name,
             manufacturer="xAI",
-            model=model,
+            model=self._model,
             entry_type=dr.DeviceEntryType.SERVICE,
         )
-        if entry.data.get(CONF_LLM_HASS_API):
+        if self._llm_hass_api():
             self._attr_supported_features = conversation.ConversationEntityFeature.CONTROL
+
+    def _llm_hass_api(self) -> list[str] | str | None:
+        """Control Home Assistant APIs from the subentry, else the parent entry."""
+        return config_option(self.entry, self.subentry, CONF_LLM_HASS_API)
+
+    def _prompt(self) -> str | None:
+        """System prompt from the subentry, else the parent entry."""
+        return config_option(self.entry, self.subentry, CONF_PROMPT)
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -112,15 +147,15 @@ class GrokConversationEntity(
         try:
             await chat_log.async_provide_llm_data(
                 user_input.as_llm_context(DOMAIN),
-                self.entry.data.get(CONF_LLM_HASS_API),
-                self.entry.data.get(CONF_PROMPT),
+                self._llm_hass_api(),
+                self._prompt(),
                 user_input.extra_system_prompt,
             )
         except conversation.ConverseError as err:
             return err.as_conversation_result()
 
         client: GrokClient = self.entry.runtime_data
-        model = self.entry.data.get(CONF_CHAT_MODEL, self._model)
+        model = config_option(self.entry, self.subentry, CONF_CHAT_MODEL, self._model)
         LOGGER.info(
             "Conversation %s model=%s realtime=%s chars=%s",
             self.entity_id,

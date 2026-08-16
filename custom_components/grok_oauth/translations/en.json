@@ -29,7 +29,7 @@
       },
       "models": {
         "title": "Expose Grok to Home Assistant",
-        "description": "Pick the chat models, Voice (TTS/STT), and Imagine surfaces to create as Home Assistant entities. Realtime is not in this release.",
+        "description": "Pick the chat models, Voice (TTS/STT), and Imagine surfaces to create as Home Assistant entities. After setup you can add more conversation agents and edit each system prompt. Realtime is not in this release.",
         "data": {
           "selected_models": "Models and capabilities"
         }
@@ -70,11 +70,64 @@
       "user_rejected_authorize": "xAI reported: {error}"
     }
   },
+  "config_subentries": {
+    "conversation": {
+      "entry_type": "Conversation agent",
+      "initiate_flow": {
+        "user": "Add conversation agent",
+        "reconfigure": "Reconfigure conversation agent"
+      },
+      "step": {
+        "init": {
+          "title": "Conversation agent",
+          "description": "Name this agent, set its system prompt, choose whether it can control Home Assistant, and pick a Grok chat model.",
+          "data": {
+            "name": "Name",
+            "prompt": "Instructions",
+            "llm_hass_api": "Control Home Assistant",
+            "chat_model": "Chat model"
+          },
+          "data_description": {
+            "prompt": "Instruct how Grok should respond. This can be a template."
+          }
+        }
+      },
+      "abort": {
+        "entry_not_loaded": "Cannot add things while the configuration is disabled.",
+        "reconfigure_successful": "Reconfigured successfully."
+      }
+    },
+    "ai_task_data": {
+      "entry_type": "AI task",
+      "initiate_flow": {
+        "user": "Add AI task",
+        "reconfigure": "Reconfigure AI task"
+      },
+      "step": {
+        "init": {
+          "title": "AI task",
+          "description": "Name this AI Task entity and pick the Grok chat and Imagine models it should use.",
+          "data": {
+            "name": "Name",
+            "chat_model": "Chat model",
+            "image_model": "Imagine model"
+          },
+          "data_description": {
+            "image_model": "Used for generate_image / Imagine. Leave unset to disable image generation on this entity."
+          }
+        }
+      },
+      "abort": {
+        "entry_not_loaded": "Cannot add things while the configuration is disabled.",
+        "reconfigure_successful": "Reconfigured successfully."
+      }
+    }
+  },
   "options": {
     "step": {
       "init": {
         "title": "Grok models",
-        "description": "Choose which Grok chat models, Voice, and Imagine surfaces Home Assistant should expose. Realtime is not in this release.",
+        "description": "Choose which Grok chat models, Voice, and Imagine surfaces Home Assistant should expose. Conversation agents and their system prompts are added from the integration page. Realtime is not in this release.",
         "data": {
           "selected_models": "Models and capabilities"
         }

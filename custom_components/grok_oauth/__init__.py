@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from types import MappingProxyType
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady, ServiceValidationError
-from homeassistant.helpers import config_entry_oauth2_flow, config_validation as cv, selector
+from homeassistant.helpers import (
+    config_entry_oauth2_flow,
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+    llm,
+    selector,
+)
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_loaded_integration
 
@@ -28,8 +36,10 @@ from .const import (
     SERVICE_CREATE_REALTIME_SESSION,
     SERVICE_GENERATE_CONTENT,
     SERVICE_GENERATE_IMAGE,
+    SUBENTRY_TYPE_AI_TASK,
+    SUBENTRY_TYPE_CONVERSATION,
 )
-from .models import chat_models, first_image_model, has_realtime, has_voice
+from .models import build_initial_subentries, chat_models, first_image_model, has_realtime, has_voice
 from .oauth import GrokOAuth2Implementation, OAuthTokens
 
 PLATFORMS = (Platform.AI_TASK, Platform.CONVERSATION, Platform.STT, Platform.TTS)
@@ -194,6 +204,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     entry.runtime_data = client
     selected = _selected(entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entry.async_on_unload(entry.add_update_listener(async_update_options))
     LOGGER.info(
         "SuperGrok OAuth %s ready account=%s chat=%s voice=%s realtime=%s imagine=%s "
         "(enable debug logging for custom_components.grok_oauth to see request traces)",
@@ -210,3 +221,80 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
 async def async_unload_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_update_options(hass: HomeAssistant, entry: GrokConfigEntry) -> None:
+    """Reload when a conversation / AI Task subentry is reconfigured."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool:
+    """Move v1 selected-model agents onto conversation / AI Task subentries."""
+    if entry.version > 2:
+        return False
+    if entry.version == 1:
+        _migrate_v1_subentries(hass, entry)
+        hass.config_entries.async_update_entry(entry, version=2)
+        LOGGER.info("Migrated SuperGrok OAuth entry %s to conversation subentries", entry.entry_id)
+    return True
+
+
+def _migrate_v1_subentries(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Create conversation + AI Task subentries from CONF_SELECTED_MODELS."""
+    if entry.get_subentries_of_type(SUBENTRY_TYPE_CONVERSATION) or entry.get_subentries_of_type(
+        SUBENTRY_TYPE_AI_TASK
+    ):
+        return
+
+    selected = _selected(entry)
+    prompt = entry.data.get(CONF_PROMPT, llm.DEFAULT_INSTRUCTIONS_PROMPT)
+    llm_apis = entry.data.get(CONF_LLM_HASS_API, [llm.LLM_API_ASSIST])
+    if isinstance(llm_apis, str):
+        llm_apis = [llm_apis]
+
+    for payload in build_initial_subentries(selected, prompt=prompt, llm_apis=llm_apis):
+        data = payload["data"]
+        unique_id = payload.get("unique_id")
+        if not isinstance(data, dict):
+            continue
+        subentry = ConfigSubentry(
+            data=MappingProxyType(data),
+            subentry_type=str(payload["subentry_type"]),
+            title=str(payload["title"]),
+            unique_id=unique_id if isinstance(unique_id, str) else None,
+        )
+        hass.config_entries.async_add_subentry(entry, subentry)
+        _remap_legacy_entity(hass, entry, subentry)
+
+
+def _remap_legacy_entity(
+    hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry
+) -> None:
+    """Keep existing conversation / AI Task entities when unique ids change."""
+    if subentry.subentry_type == SUBENTRY_TYPE_CONVERSATION:
+        model = subentry.data.get(CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL)
+        old_unique_id = f"{entry.entry_id}_{model}"
+        platform = "conversation"
+    elif subentry.subentry_type == SUBENTRY_TYPE_AI_TASK:
+        old_unique_id = f"{entry.entry_id}_ai_task"
+        platform = "ai_task"
+    else:
+        return
+
+    entity_registry = er.async_get(hass)
+    entity_id = entity_registry.async_get_entity_id(platform, DOMAIN, old_unique_id)
+    if entity_id is not None:
+        entity_registry.async_update_entity(
+            entity_id,
+            config_subentry_id=subentry.subentry_id,
+            new_unique_id=subentry.subentry_id,
+        )
+
+    device_registry = dr.async_get(hass)
+    device = device_registry.async_get_device(identifiers={(DOMAIN, old_unique_id)})
+    if device is not None:
+        device_registry.async_update_device(
+            device.id,
+            new_identifiers={(DOMAIN, subentry.subentry_id)},
+            new_config_subentry_id=subentry.subentry_id,
+        )
