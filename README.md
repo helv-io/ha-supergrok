@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  Unofficial community integration. Not affiliated with xAI or Home Assistant. OAuth, the Grok CLI proxy, and available models can change without notice.
+</p>
+
+<p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=flat-square" alt="HACS Custom"></a>
   <a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2026.8+-18bcf2?style=flat-square&logo=home-assistant&logoColor=white" alt="Home Assistant 2026.8+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
@@ -67,6 +71,9 @@ Point [Assist](https://www.home-assistant.io/voice_control/) at Grok Voice STT, 
 - SuperGrok or X Premium+
 
 ## Troubleshooting
+
+**Chat or Voice returns 402 / 403**
+This integration uses your SuperGrok / X Premium+ subscription via OAuth, not an xAI developer API key. If the account is not entitled, sign-in aborts with a tier error. If chat works but Voice fails, check logs for `cli-chat-proxy.grok.com` vs `api.x.ai`.
 
 **`redirect_uri does not match any registered URI`**
 You used My Home Assistant as the callback. Use device code (the default), or browser login and paste the localhost callback.

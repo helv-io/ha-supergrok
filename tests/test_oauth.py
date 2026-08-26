@@ -22,8 +22,10 @@ from custom_components.grok_oauth.logutil import preview
 from custom_components.grok_oauth.oauth import (
     GrokOAuthError,
     OAuthTokens,
+    account_unique_id,
     build_authorize_url,
     generate_pkce,
+    jwt_claims,
     parse_authorization_callback,
     tokens_from_payload,
 )
@@ -171,6 +173,24 @@ def test_tokens_from_payload_requires_refresh() -> None:
         assert err.reason == "oauth_error"
     else:
         raise AssertionError("expected GrokOAuthError")
+
+
+def test_account_unique_id_never_uses_token_prefix() -> None:
+    """Unique id is sub/email, never a slice of the access token."""
+    assert account_unique_id({"sub": "acct-9", "email": "a@b.c"}) == "acct-9"
+    assert account_unique_id({"email": "a@b.c"}) == "a@b.c"
+    tokens = OAuthTokens(access_token="not-a-jwt-prefix", refresh_token="r", expires_at=1)
+    assert account_unique_id({}, tokens) is None
+
+    # header.payload.sig with {"sub":"from-jwt"}
+    payload = (
+        "eyJhbGciOiJub25lIn0."
+        "eyJzdWIiOiJmcm9tLWp3dCJ9."
+        "x"
+    )
+    jwt_tokens = OAuthTokens(access_token=payload, refresh_token="r", expires_at=1)
+    assert jwt_claims(payload).get("sub") == "from-jwt"
+    assert account_unique_id({}, jwt_tokens) == "from-jwt"
 
 
 def test_oauth_tokens_roundtrip_and_expiry() -> None:

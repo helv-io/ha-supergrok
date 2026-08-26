@@ -19,6 +19,11 @@ generate_content:
       required: false
       selector:
         text:
+    image_filename:
+      name: Image files
+      required: false
+      selector:
+        text:
 
 generate_image:
   name: Generate image

@@ -1,0 +1,25 @@
+# Tracker for this custom integration. Bronze is declared in manifest.json.
+
+rules:
+  config-flow:
+    status: done
+  reauthentication-flow:
+    status: done
+  diagnostics:
+    status: done
+  entity-unique-id:
+    status: done
+  has-entity-name:
+    status: done
+  action-setup:
+    status: done
+  parallel-updates:
+    status: done
+  unique-config-entry:
+    status: done
+  entity-event-setup:
+    status: exempt
+    comment: Cloud LLM. No device subscriptions.
+  appropriate-polling:
+    status: exempt
+    comment: Request/response cloud service, not a poller.

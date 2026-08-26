@@ -7,8 +7,9 @@ import base64
 import json
 import time
 from collections import deque
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
@@ -19,16 +20,33 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     CHAT_API_BASES,
-    GROK_CLI_HEADERS,
+    CLIENT_IDENTIFIER,
+    CLIENT_IDENTIFIER_FALLBACK,
+    CLIENT_VERSION_FALLBACK,
+    GROK_CLI_TOKEN_AUTH,
     IMAGE_PATHS,
     LOGGER,
+    MAX_STATUS_RETRIES,
     MEDIA_API_BASES,
     REALTIME_WS_URLS,
+    RETRY_STATUS,
 )
 from .logutil import elapsed_ms, preview, summarize_tools
 from .oauth import GrokOAuthError, OAuthTokens, refresh_tokens
 
 PersistTokens = Callable[[OAuthTokens], Awaitable[None] | None]
+
+
+def _integration_version() -> str:
+    """Read the integration version from manifest.json."""
+    try:
+        payload = json.loads(
+            (Path(__file__).resolve().parent / "manifest.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError, json.JSONDecodeError):
+        return CLIENT_VERSION_FALLBACK
+    version = payload.get("version")
+    return str(version) if version else CLIENT_VERSION_FALLBACK
 
 
 @dataclass(slots=True)
@@ -73,6 +91,9 @@ class GrokClient:
         self._refresh_lock = asyncio.Lock()
         self._chat_base = CHAT_API_BASES[0]
         self._media_base = MEDIA_API_BASES[0]
+        self._client_identifier = CLIENT_IDENTIFIER
+        self._client_version = _integration_version()
+        self._models_cache: list[str] | None = None
         self.recent_events: deque[str] = deque(maxlen=20)
 
     def _note(self, message: str) -> None:
@@ -88,6 +109,13 @@ class GrokClient:
     def tokens(self) -> OAuthTokens:
         """Current token pair."""
         return self._tokens
+
+    def _remember_base(self, base: str) -> None:
+        """Stick to the host that last succeeded for this traffic class."""
+        if base in CHAT_API_BASES:
+            self._chat_base = base
+        if base in MEDIA_API_BASES:
+            self._media_base = base
 
     async def async_access_token(self) -> str:
         """Return a non-expired access token, refreshing if needed."""
@@ -108,7 +136,9 @@ class GrokClient:
                 self._note(f"refresh_failed:{err.reason}")
                 if err.reason in ("reauth_required", "tier_blocked"):
                     raise ConfigEntryAuthFailed(err.details or err.reason) from err
-                raise HomeAssistantError(f"SuperGrok OAuth refresh failed: {err.details or err.reason}") from err
+                raise HomeAssistantError(
+                    f"SuperGrok OAuth refresh failed: {err.details or err.reason}"
+                ) from err
             self._tokens = refreshed
             if self._persist:
                 result = self._persist(refreshed)
@@ -124,18 +154,32 @@ class GrokClient:
         json_body: bool = True,
         extra: Mapping[str, str] | None = None,
         base: str | None = None,
+        identifier: str | None = None,
     ) -> dict[str, str]:
         headers = {
             "Authorization": f"Bearer {self._tokens.access_token}",
             "Accept": "application/json",
         }
         if base and "grok.com" in base:
-            headers.update(GROK_CLI_HEADERS)
+            headers["x-xai-token-auth"] = GROK_CLI_TOKEN_AUTH
+            headers["x-grok-client-identifier"] = identifier or self._client_identifier
+            headers["x-grok-client-version"] = self._client_version
         if json_body:
             headers["Content-Type"] = "application/json"
         if extra:
             headers.update(extra)
         return headers
+
+    def _ordered_bases(
+        self, bases: tuple[str, ...], preferred_base: str | None
+    ) -> list[str]:
+        ordered: list[str] = []
+        if preferred_base:
+            ordered.append(preferred_base)
+        for base in bases:
+            if base not in ordered:
+                ordered.append(base)
+        return ordered
 
     async def _request(
         self,
@@ -149,99 +193,154 @@ class GrokClient:
         params: dict[str, Any] | None = None,
         timeout: int = 120,
         raw: bool = False,
+        binary_ok: bool = False,
         extra_paths: tuple[str, ...] = (),
     ) -> Any:
         """Issue an authenticated request, trying hosts / path aliases."""
         await self.async_access_token()
-        ordered_bases = []
-        if preferred_base:
-            ordered_bases.append(preferred_base)
-        for base in bases:
-            if base not in ordered_bases:
-                ordered_bases.append(base)
+        ordered_bases = self._ordered_bases(bases, preferred_base)
         paths = (path, *extra_paths)
         last_error: Exception | None = None
         last_status = 0
         last_body = ""
+        identifier = self._client_identifier
 
         for base in ordered_bases:
             for candidate in paths:
                 url = f"{base.rstrip('/')}{candidate}"
-                started = time.monotonic()
-                try:
-                    async with self.session.request(
-                        method,
-                        url,
-                        headers=self._headers(json_body=json_data is not None, base=base),
-                        json=json_data,
-                        data=data,
-                        params=params,
-                        timeout=aiohttp.ClientTimeout(total=timeout),
-                    ) as resp:
-                        body = await resp.read()
-                        if resp.status in (401, 403) and base == ordered_bases[0] and candidate == paths[0]:
-                            LOGGER.info("Grok %s %s -> %s; refreshing token and retrying", method, url, resp.status)
-                            self._tokens.expires_at = 0
-                            await self.async_access_token()
-                            async with self.session.request(
+                tried_shell_fallback = False
+                for attempt in range(MAX_STATUS_RETRIES + 1):
+                    started = time.monotonic()
+                    try:
+                        async with self.session.request(
+                            method,
+                            url,
+                            headers=self._headers(
+                                json_body=json_data is not None,
+                                base=base,
+                                identifier=identifier,
+                            ),
+                            json=json_data,
+                            data=data,
+                            params=params,
+                            timeout=aiohttp.ClientTimeout(total=timeout),
+                        ) as resp:
+                            body = await resp.read()
+                            content_type = resp.headers.get(
+                                "Content-Type", "application/octet-stream"
+                            )
+                            if (
+                                resp.status in (401, 403)
+                                and base == ordered_bases[0]
+                                and candidate == paths[0]
+                                and attempt == 0
+                            ):
+                                LOGGER.info(
+                                    "Grok %s %s -> %s; refreshing token and retrying",
+                                    method,
+                                    url,
+                                    resp.status,
+                                )
+                                self._tokens.expires_at = 0
+                                await self.async_access_token()
+                                continue
+                            if (
+                                resp.status in (401, 403)
+                                and base
+                                and "grok.com" in base
+                                and identifier == CLIENT_IDENTIFIER
+                                and not tried_shell_fallback
+                            ):
+                                LOGGER.debug(
+                                    "Grok %s %s -> %s with %s; retrying as %s",
+                                    method,
+                                    url,
+                                    resp.status,
+                                    CLIENT_IDENTIFIER,
+                                    CLIENT_IDENTIFIER_FALLBACK,
+                                )
+                                identifier = CLIENT_IDENTIFIER_FALLBACK
+                                self._client_identifier = CLIENT_IDENTIFIER_FALLBACK
+                                self._client_version = CLIENT_VERSION_FALLBACK
+                                tried_shell_fallback = True
+                                continue
+                            took = elapsed_ms(started)
+                            snippet = preview(body)
+                            if resp.status == 429:
+                                last_status = resp.status
+                                last_body = snippet
+                                LOGGER.warning(
+                                    "Grok %s %s -> 429 in %sms: %s",
+                                    method,
+                                    url,
+                                    took,
+                                    snippet,
+                                )
+                                self._note(f"{method} {candidate} 429: {snippet[:120]}")
+                                await _sleep_retry_after(resp, attempt)
+                                continue
+                            if resp.status == 404:
+                                last_status = resp.status
+                                last_body = snippet
+                                LOGGER.debug("Grok %s %s -> 404 in %sms", method, url, took)
+                                break
+                            if resp.status >= 400:
+                                last_status = resp.status
+                                last_body = snippet
+                                LOGGER.warning(
+                                    "Grok %s %s -> %s in %sms: %s",
+                                    method,
+                                    url,
+                                    resp.status,
+                                    took,
+                                    snippet,
+                                )
+                                self._note(f"{method} {candidate} {resp.status}: {snippet[:120]}")
+                                if resp.status in RETRY_STATUS:
+                                    last_error = HomeAssistantError(
+                                        f"Grok rejected the request ({resp.status}): {snippet}"
+                                    )
+                                    break
+                                raise HomeAssistantError(
+                                    f"Grok request failed ({resp.status}): {snippet}"
+                                )
+                            LOGGER.debug(
+                                "Grok %s %s -> %s in %sms (%s bytes)",
                                 method,
                                 url,
-                                headers=self._headers(json_body=json_data is not None, base=base),
-                                json=json_data,
-                                data=data,
-                                params=params,
-                                timeout=aiohttp.ClientTimeout(total=timeout),
-                            ) as retry:
-                                body = await retry.read()
-                                resp = retry
-                        took = elapsed_ms(started)
-                        snippet = preview(body)
-                        if resp.status == 404:
-                            last_status = resp.status
-                            last_body = snippet
-                            LOGGER.debug("Grok %s %s -> 404 in %sms", method, url, took)
-                            continue
-                        if resp.status >= 400:
-                            last_status = resp.status
-                            last_body = snippet
-                            LOGGER.warning("Grok %s %s -> %s in %sms: %s", method, url, resp.status, took, snippet)
-                            self._note(f"{method} {candidate} {resp.status}: {snippet[:120]}")
-                            if resp.status in (401, 402, 403):
-                                last_error = HomeAssistantError(
-                                    f"Grok rejected the request ({resp.status}): {snippet}"
-                                )
-                                continue
-                            raise HomeAssistantError(
-                                f"Grok request failed ({resp.status}): {snippet}"
+                                resp.status,
+                                took,
+                                len(body),
                             )
-                        LOGGER.debug("Grok %s %s -> %s in %sms (%s bytes)", method, url, resp.status, took, len(body))
-                        if raw:
-                            if base in CHAT_API_BASES:
-                                self._chat_base = base
-                            else:
-                                self._media_base = base
-                            return body, resp.headers.get("Content-Type", "application/octet-stream")
-                        if not body:
-                            if base in CHAT_API_BASES:
-                                self._chat_base = base
-                            else:
-                                self._media_base = base
-                            return {}
-                        try:
-                            parsed = json.loads(body.decode("utf-8"))
-                        except (UnicodeDecodeError, json.JSONDecodeError) as err:
-                            last_error = err
-                            LOGGER.warning("Grok %s %s returned non-JSON (%s): %s", method, url, err, snippet)
-                            continue
-                        if base in CHAT_API_BASES:
-                            self._chat_base = base
-                        else:
-                            self._media_base = base
-                        return parsed
-                except (TimeoutError, aiohttp.ClientError) as err:
-                    last_error = err
-                    LOGGER.warning("Grok transport error on %s %s: %s", method, url, err)
-                    continue
+                            if raw or (
+                                binary_ok and _looks_like_audio(content_type, body)
+                            ):
+                                self._remember_base(base)
+                                return body, content_type
+                            if not body:
+                                self._remember_base(base)
+                                return {}
+                            try:
+                                parsed = json.loads(body.decode("utf-8"))
+                            except (UnicodeDecodeError, json.JSONDecodeError) as err:
+                                if binary_ok:
+                                    self._remember_base(base)
+                                    return body, content_type
+                                last_error = err
+                                LOGGER.warning(
+                                    "Grok %s %s returned non-JSON (%s): %s",
+                                    method,
+                                    url,
+                                    err,
+                                    snippet,
+                                )
+                                break
+                            self._remember_base(base)
+                            return parsed
+                    except (TimeoutError, aiohttp.ClientError) as err:
+                        last_error = err
+                        LOGGER.warning("Grok transport error on %s %s: %s", method, url, err)
+                        break
 
         if last_status in (401, 403):
             raise ConfigEntryAuthFailed(last_body or "SuperGrok OAuth token was rejected")
@@ -252,6 +351,8 @@ class GrokClient:
 
     async def list_models(self) -> list[str]:
         """Best-effort model catalog from the live account."""
+        if self._models_cache is not None:
+            return list(self._models_cache)
         try:
             payload = await self._request(
                 "GET", CHAT_API_BASES, "/models", preferred_base=self._chat_base, timeout=20
@@ -268,7 +369,34 @@ class GrokClient:
                 ids.append(item)
             elif isinstance(item, dict) and item.get("id"):
                 ids.append(str(item["id"]))
-        return ids
+        self._models_cache = ids
+        return list(ids)
+
+    def _chat_body(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int,
+        temperature: float | None,
+        stream: bool,
+        response_format: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": stream,
+            "max_tokens": max_tokens,
+        }
+        if tools:
+            body["tools"] = tools
+            body["tool_choice"] = "auto"
+        if temperature is not None:
+            body["temperature"] = temperature
+        if response_format:
+            body["response_format"] = response_format
+        return body
 
     async def chat(
         self,
@@ -278,19 +406,18 @@ class GrokClient:
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int = 4096,
         temperature: float | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> ChatResult:
         """Call chat completions (OpenAI-compatible)."""
-        body: dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            "max_tokens": max_tokens,
-        }
-        if tools:
-            body["tools"] = tools
-            body["tool_choice"] = "auto"
-        if temperature is not None:
-            body["temperature"] = temperature
+        body = self._chat_body(
+            model=model,
+            messages=messages,
+            tools=tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=False,
+            response_format=response_format,
+        )
         started = time.monotonic()
         LOGGER.debug(
             "Chat start model=%s messages=%s tools=%s max_tokens=%s",
@@ -309,31 +436,22 @@ class GrokClient:
         )
         choices = payload.get("choices") or []
         if not choices:
-            LOGGER.error("Chat %s returned no choices in %sms: %s", model, elapsed_ms(started), preview(str(payload)))
+            LOGGER.error(
+                "Chat %s returned no choices in %sms: %s",
+                model,
+                elapsed_ms(started),
+                preview(str(payload)),
+            )
             raise HomeAssistantError("Grok returned no chat choices")
         message = (choices[0] or {}).get("message") or {}
-        tool_calls: list[dict[str, Any]] = []
-        for call in message.get("tool_calls") or []:
-            function = call.get("function") or {}
-            args_raw = function.get("arguments") or "{}"
-            try:
-                args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
-            except json.JSONDecodeError:
-                args = {"_raw": args_raw}
-            tool_calls.append(
-                {
-                    "id": call.get("id") or f"call_{len(tool_calls)}",
-                    "name": function.get("name") or "unknown",
-                    "arguments": args if isinstance(args, dict) else {"value": args},
-                }
-            )
+        tool_calls = _parse_tool_calls(message.get("tool_calls") or [])
         result = ChatResult(
             text=message.get("content") or "",
             tool_calls=tool_calls,
             finish_reason=choices[0].get("finish_reason"),
             raw=payload,
         )
-        LOGGER.info(
+        LOGGER.debug(
             "Chat %s finish=%s tools_called=%s text_chars=%s in %sms via %s",
             model,
             result.finish_reason,
@@ -344,6 +462,124 @@ class GrokClient:
         )
         self._note(f"chat {model} {result.finish_reason} {elapsed_ms(started)}ms")
         return result
+
+    async def chat_stream(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        max_tokens: int = 4096,
+        temperature: float | None = None,
+        response_format: dict[str, Any] | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream chat completions as HA-friendly deltas, then a finish event."""
+        await self.async_access_token()
+        body = self._chat_body(
+            model=model,
+            messages=messages,
+            tools=tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=True,
+            response_format=response_format,
+        )
+        ordered_bases = self._ordered_bases(CHAT_API_BASES, self._chat_base)
+        last_error: Exception | None = None
+        started = time.monotonic()
+        LOGGER.debug(
+            "Chat stream start model=%s messages=%s tools=%s",
+            model,
+            len(messages),
+            summarize_tools(tools),
+        )
+        for base in ordered_bases:
+            url = f"{base.rstrip('/')}/chat/completions"
+            identifier = self._client_identifier
+            try:
+                async with self.session.post(
+                    url,
+                    headers=self._headers(json_body=True, base=base, identifier=identifier),
+                    json=body,
+                    timeout=aiohttp.ClientTimeout(total=180),
+                ) as resp:
+                    if resp.status in (401, 403) and identifier == CLIENT_IDENTIFIER and "grok.com" in base:
+                        self._client_identifier = CLIENT_IDENTIFIER_FALLBACK
+                        self._client_version = CLIENT_VERSION_FALLBACK
+                        last_error = HomeAssistantError(f"Grok stream {resp.status}")
+                        continue
+                    if resp.status in RETRY_STATUS:
+                        last_error = HomeAssistantError(
+                            f"Grok stream rejected ({resp.status}): {preview(await resp.read())}"
+                        )
+                        continue
+                    if resp.status >= 400:
+                        raise HomeAssistantError(
+                            f"Grok stream failed ({resp.status}): {preview(await resp.read())}"
+                        )
+                    self._remember_base(base)
+                    text_chars = 0
+                    tool_acc: dict[int, dict[str, str]] = {}
+                    finish_reason: str | None = None
+                    async for event in _iter_sse(resp):
+                        if event is None:
+                            break
+                        choices = event.get("choices") or []
+                        if not choices:
+                            continue
+                        choice = choices[0] or {}
+                        finish_reason = choice.get("finish_reason") or finish_reason
+                        delta = choice.get("delta") or {}
+                        if content := delta.get("content"):
+                            text_chars += len(content)
+                            yield {"content": content}
+                        for call in delta.get("tool_calls") or []:
+                            if not isinstance(call, dict):
+                                continue
+                            index = int(call.get("index") or 0)
+                            slot = tool_acc.setdefault(
+                                index, {"id": "", "name": "", "arguments": ""}
+                            )
+                            if call.get("id"):
+                                slot["id"] = str(call["id"])
+                            function = call.get("function") or {}
+                            if function.get("name"):
+                                slot["name"] = str(function["name"])
+                            if function.get("arguments"):
+                                slot["arguments"] += str(function["arguments"])
+                    tool_calls = _parse_tool_calls(
+                        [
+                            {
+                                "id": slot["id"] or f"call_{index}",
+                                "function": {
+                                    "name": slot["name"],
+                                    "arguments": slot["arguments"] or "{}",
+                                },
+                            }
+                            for index, slot in sorted(tool_acc.items())
+                            if slot["name"]
+                        ]
+                    )
+                    yield {
+                        "finish_reason": finish_reason,
+                        "tool_calls": tool_calls,
+                    }
+                    LOGGER.debug(
+                        "Chat stream %s finish=%s tools_called=%s text_chars=%s in %sms via %s",
+                        model,
+                        finish_reason,
+                        [call["name"] for call in tool_calls] or "-",
+                        text_chars,
+                        elapsed_ms(started),
+                        base,
+                    )
+                    self._note(f"chat_stream {model} {finish_reason} {elapsed_ms(started)}ms")
+                    return
+            except (TimeoutError, aiohttp.ClientError, HomeAssistantError) as err:
+                last_error = err
+                LOGGER.warning("Grok stream failed on %s: %s", url, err)
+                continue
+        raise HomeAssistantError(f"Grok chat stream failed: {last_error}")
 
     async def generate_image(
         self,
@@ -370,7 +606,14 @@ class GrokClient:
         if quality:
             body["quality"] = quality
         started = time.monotonic()
-        LOGGER.debug("Imagine start model=%s n=%s ratio=%s res=%s prompt_chars=%s", model, n, aspect_ratio, resolution, len(prompt))
+        LOGGER.debug(
+            "Imagine start model=%s n=%s ratio=%s res=%s prompt_chars=%s",
+            model,
+            n,
+            aspect_ratio,
+            resolution,
+            len(prompt),
+        )
         payload = await self._request(
             "POST",
             MEDIA_API_BASES,
@@ -400,7 +643,7 @@ class GrokClient:
             )
         if not results:
             raise HomeAssistantError("Grok Imagine returned an empty image payload")
-        LOGGER.info("Imagine %s returned %s image(s) in %sms", model, len(results), elapsed_ms(started))
+        LOGGER.debug("Imagine %s returned %s image(s) in %sms", model, len(results), elapsed_ms(started))
         return results
 
     async def list_tts_voices(self) -> list[tuple[str, str]]:
@@ -453,33 +696,35 @@ class GrokClient:
         }
         started = time.monotonic()
         LOGGER.debug("TTS start voice=%s lang=%s codec=%s chars=%s", voice_id, language, codec, len(text))
-        try:
-            payload = await self._request(
-                "POST",
-                MEDIA_API_BASES,
-                "/tts",
-                preferred_base=self._media_base,
-                json_data=body,
-                timeout=120,
+        payload = await self._request(
+            "POST",
+            MEDIA_API_BASES,
+            "/tts",
+            preferred_base=self._media_base,
+            json_data=body,
+            timeout=120,
+            binary_ok=True,
+        )
+        if isinstance(payload, tuple):
+            raw, content_type = payload
+            LOGGER.debug(
+                "TTS voice=%s codec=%s bytes=%s in %sms (raw)",
+                voice_id,
+                codec,
+                len(raw),
+                elapsed_ms(started),
             )
-        except HomeAssistantError:
-            # Some gateways return raw audio instead of JSON.
-            raw, content_type = await self._request(
-                "POST",
-                MEDIA_API_BASES,
-                "/tts",
-                preferred_base=self._media_base,
-                json_data=body,
-                timeout=120,
-                raw=True,
-            )
-            LOGGER.info("TTS voice=%s codec=%s bytes=%s in %sms (raw)", voice_id, codec, len(raw), elapsed_ms(started))
             return raw, content_type
-
         if isinstance(payload, dict) and payload.get("audio"):
             audio = base64.b64decode(payload["audio"])
             content_type = payload.get("content_type") or _content_type_for_codec(codec)
-            LOGGER.info("TTS voice=%s codec=%s bytes=%s in %sms", voice_id, codec, len(audio), elapsed_ms(started))
+            LOGGER.debug(
+                "TTS voice=%s codec=%s bytes=%s in %sms",
+                voice_id,
+                codec,
+                len(audio),
+                elapsed_ms(started),
+            )
             return audio, content_type
         raise HomeAssistantError("Grok TTS returned no audio")
 
@@ -536,31 +781,21 @@ class GrokClient:
 
         last_preview = ""
         for label, form in attempts:
-            await self.async_access_token()
             try:
-                async with self.session.post(
-                    "https://api.x.ai/v1/stt",
-                    headers=self._headers(json_body=False, base="https://api.x.ai/v1"),
+                payload = await self._request(
+                    "POST",
+                    MEDIA_API_BASES,
+                    "/stt",
+                    preferred_base=self._media_base,
                     data=form,
-                    timeout=aiohttp.ClientTimeout(total=120),
-                ) as resp:
-                    body = await resp.read()
-            except (TimeoutError, aiohttp.ClientError) as err:
+                    timeout=120,
+                )
+            except HomeAssistantError as err:
                 last_preview = str(err)
-                LOGGER.warning("Grok STT %s transport error: %s", label, err)
-                continue
-            snippet = preview(body)
-            last_preview = f"{resp.status} {snippet}"
-            if resp.status >= 400:
-                LOGGER.warning("STT %s -> %s in %sms: %s", label, resp.status, elapsed_ms(started), snippet)
-                continue
-            try:
-                payload = json.loads(body.decode("utf-8")) if body else {}
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                LOGGER.warning("STT %s returned non-JSON: %s", label, snippet)
+                LOGGER.warning("STT %s failed: %s", label, err)
                 continue
             if text := _extract_transcript(payload):
-                LOGGER.info(
+                LOGGER.debug(
                     "STT %s ok chars=%s duration=%s in %sms: %s",
                     label,
                     len(text),
@@ -571,15 +806,15 @@ class GrokClient:
                 self._note(f"stt ok {label} {elapsed_ms(started)}ms")
                 return text
             duration = payload.get("duration") if isinstance(payload, dict) else None
+            snippet = preview(payload if not isinstance(payload, dict) else json.dumps(payload))
             LOGGER.warning(
-                "STT %s HTTP %s empty text (duration=%s) in %sms: %s",
+                "STT %s empty text (duration=%s) in %sms: %s",
                 label,
-                resp.status,
                 duration,
                 elapsed_ms(started),
-                preview(preview),
+                snippet,
             )
-            last_preview = f"HTTP {resp.status} empty transcript, duration={duration}s"
+            last_preview = f"empty transcript, duration={duration}s"
         self._note(f"stt fail {last_preview}")
         raise HomeAssistantError(
             f"Grok STT heard audio but returned no text ({last_preview})"
@@ -620,7 +855,12 @@ class GrokClient:
         token = await self.async_access_token()
         last_error: Exception | None = None
         started = time.monotonic()
-        LOGGER.debug("Realtime start model=%s tools=%s text_chars=%s", model, summarize_tools(tools), len(user_text))
+        LOGGER.debug(
+            "Realtime start model=%s tools=%s text_chars=%s",
+            model,
+            summarize_tools(tools),
+            len(user_text),
+        )
         for base in REALTIME_WS_URLS:
             url = f"{base}?{urlencode({'model': model})}"
             try:
@@ -628,7 +868,9 @@ class GrokClient:
                     url,
                     headers={
                         "Authorization": f"Bearer {token}",
-                        **GROK_CLI_HEADERS,
+                        "x-xai-token-auth": GROK_CLI_TOKEN_AUTH,
+                        "x-grok-client-identifier": self._client_identifier,
+                        "x-grok-client-version": self._client_version,
                     },
                     heartbeat=20,
                     timeout=aiohttp.ClientTimeout(total=120),
@@ -689,7 +931,9 @@ class GrokClient:
                                 args = {"_raw": args_raw}
                             tool_calls.append(
                                 {
-                                    "id": event.get("call_id") or event.get("id") or f"call_{len(tool_calls)}",
+                                    "id": event.get("call_id")
+                                    or event.get("id")
+                                    or f"call_{len(tool_calls)}",
                                     "name": event.get("name") or "unknown",
                                     "arguments": args if isinstance(args, dict) else {"value": args},
                                 }
@@ -703,7 +947,7 @@ class GrokClient:
                             break
                     await ws.close()
                     result = ChatResult(text="".join(text_parts).strip(), tool_calls=tool_calls)
-                    LOGGER.info(
+                    LOGGER.debug(
                         "Realtime %s tools_called=%s text_chars=%s in %sms via %s",
                         model,
                         [call["name"] for call in tool_calls] or "-",
@@ -717,6 +961,75 @@ class GrokClient:
                 LOGGER.warning("Realtime websocket failed on %s: %s", url, err)
                 continue
         raise HomeAssistantError(f"Grok Realtime websocket failed: {last_error}")
+
+
+def _parse_tool_calls(raw_calls: list[Any]) -> list[dict[str, Any]]:
+    """Normalize OpenAI-shaped tool_calls into {id, name, arguments}."""
+    tool_calls: list[dict[str, Any]] = []
+    for call in raw_calls:
+        if not isinstance(call, dict):
+            continue
+        function = call.get("function") or {}
+        args_raw = function.get("arguments") or "{}"
+        try:
+            args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+        except json.JSONDecodeError:
+            args = {"_raw": args_raw}
+        tool_calls.append(
+            {
+                "id": call.get("id") or f"call_{len(tool_calls)}",
+                "name": function.get("name") or call.get("name") or "unknown",
+                "arguments": args if isinstance(args, dict) else {"value": args},
+            }
+        )
+    return tool_calls
+
+
+async def _iter_sse(resp: aiohttp.ClientResponse) -> AsyncIterator[dict[str, Any] | None]:
+    """Yield JSON objects from an OpenAI-style SSE body. None means [DONE]."""
+    buffer = ""
+    async for raw in resp.content:
+        buffer += raw.decode("utf-8", "ignore")
+        while "\n" in buffer:
+            line, buffer = buffer.split("\n", 1)
+            line = line.strip()
+            if not line or line.startswith(":"):
+                continue
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                yield None
+                return
+            try:
+                parsed = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                yield parsed
+
+
+async def _sleep_retry_after(resp: aiohttp.ClientResponse, attempt: int) -> None:
+    """Wait out a 429 using Retry-After or exponential backoff."""
+    delay = float(min(2**attempt, 8))
+    header = resp.headers.get("Retry-After")
+    if header:
+        try:
+            delay = min(max(float(header), 0.1), 30.0)
+        except (TypeError, ValueError):
+            pass
+    await asyncio.sleep(delay)
+
+
+def _looks_like_audio(content_type: str, body: bytes) -> bool:
+    """True when the gateway returned audio instead of JSON."""
+    lowered = (content_type or "").split(";")[0].strip().lower()
+    if lowered.startswith("audio/"):
+        return True
+    stripped = body.lstrip()
+    if not stripped:
+        return False
+    return stripped[:1] not in (b"{", b"[")
 
 
 def _extract_transcript(payload: Any) -> str | None:

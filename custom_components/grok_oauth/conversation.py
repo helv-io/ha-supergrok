@@ -13,8 +13,11 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
     CONF_CHAT_MODEL,
+    CONF_MAX_TOKENS,
     CONF_SELECTED_MODELS,
+    CONF_TEMPERATURE,
     DEFAULT_CHAT_MODEL,
+    DEFAULT_MAX_TOKENS,
     DEFAULT_REALTIME_NAME,
     DEFAULT_TTS_VOICE,
     DOMAIN,
@@ -23,6 +26,8 @@ from .const import (
 )
 from .helpers import async_run_chat_log
 from .models import CATALOG_BY_ID, config_option, conversation_agent_specs, has_realtime
+
+PARALLEL_UPDATES = 0
 
 if TYPE_CHECKING:
     from .client import GrokClient
@@ -72,8 +77,8 @@ class GrokConversationEntity(
 ):
     """Grok conversation agent backed by SuperGrok OAuth."""
 
-    _attr_has_entity_name = False
-    _attr_supports_streaming = False
+    _attr_has_entity_name = True
+    _attr_supports_streaming = True
 
     def __init__(
         self,
@@ -93,19 +98,21 @@ class GrokConversationEntity(
                 config_option(entry, subentry, CONF_CHAT_MODEL, DEFAULT_CHAT_MODEL)
             )
             self._attr_unique_id = subentry.subentry_id
-            self._attr_name = subentry.title
+            self._attr_name = None
+            device_name = subentry.title
         else:
             self._model = model or DEFAULT_CHAT_MODEL
             self._attr_unique_id = f"{entry.entry_id}_{'realtime' if realtime else self._model}"
             catalog = CATALOG_BY_ID.get(self._model)
-            self._attr_name = (
+            device_name = (
                 DEFAULT_REALTIME_NAME
                 if realtime
                 else (catalog.label if catalog else f"Grok {self._model}")
             )
+            self._attr_name = None
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, self._attr_unique_id)},
-            name=self._attr_name,
+            name=device_name,
             manufacturer="xAI",
             model=self._model,
             entry_type=dr.DeviceEntryType.SERVICE,
@@ -156,7 +163,12 @@ class GrokConversationEntity(
 
         client: GrokClient = self.entry.runtime_data
         model = config_option(self.entry, self.subentry, CONF_CHAT_MODEL, self._model)
-        LOGGER.info(
+        max_tokens = int(
+            config_option(self.entry, self.subentry, CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)
+            or DEFAULT_MAX_TOKENS
+        )
+        temperature = config_option(self.entry, self.subentry, CONF_TEMPERATURE)
+        LOGGER.debug(
             "Conversation %s model=%s realtime=%s chars=%s",
             self.entity_id,
             model,
@@ -169,6 +181,8 @@ class GrokConversationEntity(
                 chat_log=chat_log,
                 model=model,
                 agent_id=self.entity_id,
+                max_tokens=max_tokens,
+                temperature=float(temperature) if temperature is not None else None,
                 realtime=self._realtime,
                 voice=DEFAULT_TTS_VOICE,
             )

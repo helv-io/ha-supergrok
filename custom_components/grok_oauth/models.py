@@ -211,22 +211,35 @@ def resolve_voice_model(selected: list[str] | tuple[str, ...]) -> str:
     return DEFAULT_VOICE_MODEL
 
 
-def chat_model_options() -> list[dict[str, str]]:
+def _merge_selector_options(
+    catalog_kind: Kind, extra: list[str] | tuple[str, ...] | None
+) -> list[dict[str, str]]:
+    """Catalog labels first, then any live ids the account actually has."""
+    options = [
+        {"value": model.id, "label": model.label}
+        for model in MODEL_CATALOG
+        if model.kind == catalog_kind
+    ]
+    known = {item["value"] for item in options}
+    for model_id in extra or ():
+        if model_id and model_id not in known:
+            options.append({"value": model_id, "label": model_id})
+            known.add(model_id)
+    return options
+
+
+def chat_model_options(
+    extra: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, str]]:
     """Return selector options for conversation / AI Task chat models."""
-    return [
-        {"value": model.id, "label": model.label}
-        for model in MODEL_CATALOG
-        if model.kind == "chat"
-    ]
+    return _merge_selector_options("chat", extra)
 
 
-def image_model_options() -> list[dict[str, str]]:
+def image_model_options(
+    extra: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, str]]:
     """Return selector options for Imagine models."""
-    return [
-        {"value": model.id, "label": model.label}
-        for model in MODEL_CATALOG
-        if model.kind == "image"
-    ]
+    return _merge_selector_options("image", extra)
 
 
 def conversation_subentry_data(
@@ -284,8 +297,11 @@ def build_initial_subentries(
     prompt: str | None = None,
     llm_apis: list[str] | None = None,
 ) -> list[dict[str, object]]:
-    """Mint default conversation + AI Task subentries from the model picker."""
-    chats = chat_models(selected) or [DEFAULT_CHAT_MODEL]
+    """Mint conversation + AI Task subentries from the model picker.
+
+    Voice-only installs get no conversation or AI Task subentries.
+    """
+    chats = chat_models(selected)
     image = first_image_model(selected)
     subentries: list[dict[str, object]] = []
     for model in chats:
@@ -300,15 +316,18 @@ def build_initial_subentries(
                 "unique_id": None,
             }
         )
-    ai_task_data: dict[str, object] = {CONF_CHAT_MODEL: chats[0]}
-    if image:
-        ai_task_data[CONF_IMAGE_MODEL] = image
-    subentries.append(
-        {
-            "subentry_type": SUBENTRY_TYPE_AI_TASK,
-            "data": ai_task_data,
-            "title": DEFAULT_AI_TASK_NAME,
-            "unique_id": None,
+    if chats or image:
+        ai_task_data: dict[str, object] = {
+            CONF_CHAT_MODEL: chats[0] if chats else DEFAULT_CHAT_MODEL,
         }
-    )
+        if image:
+            ai_task_data[CONF_IMAGE_MODEL] = image
+        subentries.append(
+            {
+                "subentry_type": SUBENTRY_TYPE_AI_TASK,
+                "data": ai_task_data,
+                "title": DEFAULT_AI_TASK_NAME,
+                "unique_id": None,
+            }
+        )
     return subentries

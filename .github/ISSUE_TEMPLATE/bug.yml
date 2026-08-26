@@ -1,0 +1,55 @@
+name: Bug report
+description: Chat, Voice, Imagine, or login is broken
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Unofficial community integration. Include logs with `custom_components.grok_oauth` at debug.
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.8.0"
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: SuperGrok OAuth version
+      placeholder: "0.5.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: account
+    attributes:
+      label: Account type
+      options:
+        - SuperGrok
+        - X Premium+
+        - xAI developer API key (this integration does not use API keys)
+        - Unsure
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: What broke
+      options:
+        - Sign-in / reauth
+        - Conversation / Assist chat
+        - Speech-to-text
+        - Text-to-speech
+        - Imagine / generate_image
+        - AI Task generate_data
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug log snippet
+      description: Settings → System → Logs → custom_components.grok_oauth = debug. Redact tokens.
+    validations:
+      required: true
