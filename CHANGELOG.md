@@ -5,9 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The integration version is `custom_components/grok_oauth/manifest.json` → `version`.
+The integration version is `custom_components/supergrok/manifest.json` → `version`.
 
 ## [Unreleased]
+
+## [0.6.0] - 2026-08-26
+
+**Reconfiguration required.** After upgrading to 0.6.0 you must remove the old `grok_oauth` integration, delete `custom_components/grok_oauth` if that folder is still there, install SuperGrok as domain `supergrok`, then add the integration in Home Assistant and sign in again. Old config entries will not migrate.
+
+1. Update SuperGrok OAuth to 0.6.0 in HACS (or copy `custom_components/supergrok`).
+2. Remove the old SuperGrok / Grok entry under Settings → Devices & services if it is still listed (domain `grok_oauth`).
+3. Delete `/config/custom_components/grok_oauth` if HACS left it behind after the folder rename.
+4. Restart Home Assistant.
+5. Add **SuperGrok OAuth** (domain `supergrok`) and complete SuperGrok sign-in.
+
+Services, logger, My Home Assistant config-flow links, and entity-registry rows that used the `grok_oauth` domain do not carry over. Recreate Assist pipeline selections that pointed at the old conversation / Voice / AI Task entities.
+
+### Breaking
+
+- Home Assistant domain renamed `grok_oauth` → `supergrok`.
+- Integration path is now `custom_components/supergrok/` (HACS installs that folder).
+- Services are `supergrok.generate_content` and `supergrok.generate_image`.
+- Debug logger is `custom_components.supergrok`.
+
+### Fixed
+
+- Setup no longer fails with `ModuleNotFoundError: Platform grok_oauth.ai_task not found`. The AI Task platform module is part of the integration, and `ai_task` is a manifest dependency so Home Assistant loads it before forwarding that platform.
 
 ## [0.5.0] - 2026-08-26
 
