@@ -41,24 +41,31 @@ OAUTH_SCOPE: Final = (
 OAUTH_DEVICE_GRANT: Final = "urn:ietf:params:oauth:grant-type:device_code"
 
 # Subscription OAuth traffic belongs on the Grok CLI proxy. The public
-# developer API (api.x.ai) often 402/403s a SuperGrok bearer.
+# developer API (api.x.ai) often 402/403s a SuperGrok bearer. Voice,
+# Imagine, and chat all try the proxy first.
 CHAT_API_BASES: Final = (
     "https://cli-chat-proxy.grok.com/v1",
     "https://api.x.ai/v1",
 )
 MEDIA_API_BASES: Final = (
-    "https://api.x.ai/v1",
     "https://cli-chat-proxy.grok.com/v1",
+    "https://api.x.ai/v1",
 )
 REALTIME_WS_URLS: Final = (
-    "wss://api.x.ai/v1/realtime",
     "wss://cli-chat-proxy.grok.com/v1/realtime",
+    "wss://api.x.ai/v1/realtime",
 )
 
+# grok.com still gates on the CLI auth header. Identify as this integration
+# first; fall back to grok-shell if that host 401/403s.
+GROK_CLI_TOKEN_AUTH: Final = "xai-grok-cli"
+CLIENT_IDENTIFIER: Final = "ha-supergrok"
+CLIENT_IDENTIFIER_FALLBACK: Final = "grok-shell"
+CLIENT_VERSION_FALLBACK: Final = "0.2.93"
 GROK_CLI_HEADERS: Final = {
-    "x-xai-token-auth": "xai-grok-cli",
-    "x-grok-client-identifier": "grok-shell",
-    "x-grok-client-version": "0.2.93",
+    "x-xai-token-auth": GROK_CLI_TOKEN_AUTH,
+    "x-grok-client-identifier": CLIENT_IDENTIFIER,
+    "x-grok-client-version": CLIENT_VERSION_FALLBACK,
 }
 
 CONF_ACCESS_TOKEN: Final = "access_token"
@@ -75,6 +82,8 @@ CONF_VOICE_MODEL: Final = "voice_model"
 CONF_REALTIME_MODEL: Final = "realtime_model"
 CONF_TTS_VOICE: Final = "tts_voice"
 CONF_LLM_CONTROL: Final = "llm_control"
+CONF_TEMPERATURE: Final = "temperature"
+CONF_MAX_TOKENS: Final = "max_tokens"
 
 SUBENTRY_TYPE_CONVERSATION: Final = "conversation"
 SUBENTRY_TYPE_AI_TASK: Final = "ai_task_data"
@@ -88,6 +97,9 @@ DEFAULT_VOICE_MODEL: Final = "grok-voice-think-fast-2.0"
 DEFAULT_REALTIME_MODEL: Final = "grok-voice-latest"
 DEFAULT_TTS_VOICE: Final = "eve"
 DEFAULT_MAX_TOKENS: Final = 4096
+DEFAULT_TEMPERATURE: Final = 1.0
+RETRY_STATUS: Final = (401, 402, 403, 429)
+MAX_STATUS_RETRIES: Final = 2
 
 # HA Assist is text in / text out. These xAI voice endpoints map to HA
 # platforms; SIP / phone / custom-voice admin do not.

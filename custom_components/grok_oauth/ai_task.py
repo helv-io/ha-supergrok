@@ -11,19 +11,21 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.util.json import json_loads
 
 from .const import (
     CONF_CHAT_MODEL,
     CONF_IMAGE_MODEL,
+    CONF_MAX_TOKENS,
     CONF_SELECTED_MODELS,
+    CONF_TEMPERATURE,
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CHAT_MODEL,
+    DEFAULT_MAX_TOKENS,
     DOMAIN,
     LOGGER,
     SUBENTRY_TYPE_AI_TASK,
 )
-from .helpers import async_run_chat_log
+from .helpers import async_run_chat_log, extract_json_object
 from .models import chat_models, config_option, first_image_model
 
 if TYPE_CHECKING:
@@ -96,11 +98,19 @@ class GrokAITaskEntity(ai_task.AITaskEntity):
     ) -> ai_task.GenDataTaskResult:
         """Handle generate_data via chat completions."""
         client: GrokClient = self.entry.runtime_data
+        max_tokens = int(
+            config_option(self.entry, self.subentry, CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)
+            or DEFAULT_MAX_TOKENS
+        )
+        temperature = config_option(self.entry, self.subentry, CONF_TEMPERATURE)
         await async_run_chat_log(
             client=client,
             chat_log=chat_log,
             model=self._chat_model,
             agent_id=self.entity_id,
+            max_tokens=max_tokens,
+            temperature=float(temperature) if temperature is not None else None,
+            response_format={"type": "json_object"} if task.structure else None,
         )
         if not isinstance(chat_log.content[-1], conversation.AssistantContent):
             raise HomeAssistantError("Grok did not return an assistant message")
@@ -111,7 +121,7 @@ class GrokAITaskEntity(ai_task.AITaskEntity):
                 data=text,
             )
         try:
-            data = json_loads(text)
+            data = extract_json_object(text)
         except JSONDecodeError as err:
             LOGGER.error("Structured Grok response was not JSON: %s", text[:300])
             raise HomeAssistantError("Grok structured response was not valid JSON") from err

@@ -2,23 +2,39 @@
 
 from __future__ import annotations
 
+import base64
 from collections.abc import Callable
+from pathlib import Path
 from types import MappingProxyType
 
 import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, Platform
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady, ServiceValidationError
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
+    ServiceValidationError,
+)
 from homeassistant.helpers import (
-    config_entry_oauth2_flow,
     config_validation as cv,
+)
+from homeassistant.helpers import (
     device_registry as dr,
+)
+from homeassistant.helpers import (
     entity_registry as er,
+)
+from homeassistant.helpers import (
     llm,
     selector,
 )
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_loaded_integration
 
@@ -39,8 +55,14 @@ from .const import (
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
 )
-from .models import build_initial_subentries, chat_models, first_image_model, has_realtime, has_voice
-from .oauth import GrokOAuth2Implementation, OAuthTokens
+from .models import (
+    build_initial_subentries,
+    chat_models,
+    first_image_model,
+    has_realtime,
+    has_voice,
+)
+from .oauth import OAuthTokens, revoke_tokens
 
 PLATFORMS = (Platform.AI_TASK, Platform.CONVERSATION, Platform.STT, Platform.TTS)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -59,11 +81,35 @@ def _persist(hass: HomeAssistant, entry: ConfigEntry) -> Callable[[OAuthTokens],
     return _write
 
 
+def _image_message(prompt: str, filenames: list[str] | None) -> dict:
+    """Build a chat message, optionally attaching local image files."""
+    if not filenames:
+        return {"role": "user", "content": prompt}
+    parts: list[dict] = [{"type": "text", "text": prompt}]
+    for name in filenames:
+        path = Path(name)
+        if not path.is_file():
+            raise ServiceValidationError(f"Image file not found: {name}")
+        mime = "image/jpeg"
+        suffix = path.suffix.lower()
+        if suffix == ".png":
+            mime = "image/png"
+        elif suffix in (".webp",):
+            mime = "image/webp"
+        elif suffix in (".gif",):
+            mime = "image/gif"
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        parts.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime};base64,{encoded}"},
+            }
+        )
+    return {"role": "user", "content": parts}
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register services. Browser login uses the Grok CLI loopback, not My HA."""
-    config_entry_oauth2_flow.async_register_implementation(
-        hass, DOMAIN, GrokOAuth2Implementation(hass)
-    )
 
     def _entry_from_call(call: ServiceCall) -> GrokConfigEntry:
         entry = hass.config_entries.async_get_entry(call.data["config_entry"])
@@ -80,7 +126,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         )
         result = await client.chat(
             model=model,
-            messages=[{"role": "user", "content": call.data["prompt"]}],
+            messages=[
+                _image_message(call.data["prompt"], call.data.get("image_filename"))
+            ],
         )
         return {"text": result.text, "model": model}
 
@@ -141,6 +189,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 vol.Required("config_entry"): selector.ConfigEntrySelector({"integration": DOMAIN}),
                 vol.Required("prompt"): cv.string,
                 vol.Optional("model"): cv.string,
+                vol.Optional("image_filename"): vol.All(cv.ensure_list, [cv.string]),
             }
         ),
         supports_response=SupportsResponse.ONLY,
@@ -206,10 +255,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_update_options))
     LOGGER.info(
-        "SuperGrok OAuth %s ready account=%s chat=%s voice=%s realtime=%s imagine=%s "
+        "SuperGrok OAuth %s ready title=%s chat=%s voice=%s realtime=%s imagine=%s "
         "(enable debug logging for custom_components.grok_oauth to see request traces)",
         async_get_loaded_integration(hass, DOMAIN).version,
-        entry.data.get("account_email") or entry.title,
+        entry.title,
         chat_models(selected),
         has_voice(selected),
         has_realtime(selected),
@@ -221,6 +270,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
 async def async_unload_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> None:
+    """Revoke the SuperGrok refresh token. Removal still succeeds if revoke fails."""
+    try:
+        tokens = OAuthTokens.from_dict(dict(entry.data))
+    except KeyError:
+        return
+    try:
+        await revoke_tokens(async_get_clientsession(hass), tokens)
+    except Exception:  # noqa: BLE001
+        LOGGER.warning("Could not revoke SuperGrok tokens for %s", entry.entry_id)
 
 
 async def async_update_options(hass: HomeAssistant, entry: GrokConfigEntry) -> None:

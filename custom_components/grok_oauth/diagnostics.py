@@ -17,6 +17,9 @@ TO_REDACT = {
     "id_token",
     "token",
     "value",
+    "account_email",
+    "account_name",
+    "email",
 }
 
 

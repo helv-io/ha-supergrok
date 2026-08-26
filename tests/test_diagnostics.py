@@ -32,7 +32,8 @@ async def test_diagnostics_redact_tokens(hass: HomeAssistant) -> None:
     assert "SECRET_ACCESS_TOKEN" not in dumped
     assert "SECRET_REFRESH_TOKEN" not in dumped
     assert "SECRET_ID_TOKEN" not in dumped
-    assert payload["account_email"] == "user@example.com"
+    assert "user@example.com" not in dumped
+    assert payload.get("account_email") in (None, "**REDACTED**", "REDACTED")
     assert payload["selected_models"] == ["grok-4.6", "voice", "realtime"]
     assert payload["realtime"] is False
     assert payload["token_expires_at"] == 1700000000

@@ -50,8 +50,8 @@ async def async_setup_entry(
 class GrokTTSEntity(TextToSpeechEntity):
     """Home Assistant TTS entity wrapping POST /v1/tts."""
 
-    _attr_has_entity_name = False
-    _attr_name = DEFAULT_TTS_NAME
+    _attr_has_entity_name = True
+    _attr_name = None
     _attr_supported_options = [ATTR_VOICE, ATTR_PREFERRED_FORMAT]
     _attr_supported_languages = TTS_HA_LANGUAGES
     _attr_default_language = "en-US"

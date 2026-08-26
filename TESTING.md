@@ -1,0 +1,74 @@
+# Pre-release checklist for 0.5.0
+
+Use a throwaway Home Assistant 2026.8+ instance and a real SuperGrok or X Premium+ account. Unit tests cannot prove Voice or the CLI proxy.
+
+Install this branch (`improve/0.5.0-hardening`): copy `custom_components/grok_oauth` into `/config/custom_components/grok_oauth` and restart. Do not tag until every box you can run is ticked.
+
+## A. Fresh install and login
+
+- [ ] Integration appears as **SuperGrok OAuth**.
+- [ ] README says unofficial / not affiliated.
+- [ ] Device code (default): verification URL + user code; approving on another device finishes without paste. Unique id is the account `sub`, not a token prefix.
+- [ ] Browser backup: authorize URL uses `http://127.0.0.1:56121/callback` (not my.home-assistant.io). Full `code=` paste works. Wrong `state` is rejected. Bare code still works.
+- [ ] Second add of the same account → already configured.
+- [ ] Deny on xAI → `access_denied`, no half-created entry.
+- [ ] Non-entitled account (if you have one) → `tier_blocked`.
+
+## B. Model picker and subentries
+
+- [ ] Default picker: Grok 4.6 + Voice + Imagine. Realtime is absent.
+- [ ] Voice-only: STT + TTS exist; no conversation agent and no AI Task invented.
+- [ ] Chat-only: conversation entity, no STT/TTS.
+- [ ] Add → Conversation: name, prompt, Control Home Assistant, model. A second agent is independent.
+- [ ] Reconfigure a conversation: prompt change applies on the next Assist chat. Entity id unchanged.
+- [ ] Add → AI Task: chat + Imagine. Leave Imagine unset → generate_image disabled, generate_data still works.
+- [ ] Options: toggling Voice off removes STT/TTS; toggling back recreates them.
+
+## C. Chat / Assist
+
+- [ ] Assist text streams in the UI (not a single dump after several seconds).
+- [ ] Control Home Assistant on: “turn on the test light” actually toggles the light.
+- [ ] Control off: the model cannot toggle lights.
+- [ ] Multi-turn follow-up uses prior context.
+- [ ] A prompt that would hammer tools still ends with a reply (no empty Assist bubble).
+- [ ] Image attachment (doorbell snapshot) is described. Non-image attachment errors cleanly.
+- [ ] Developer tools → `grok_oauth.generate_content` with a prompt; with `image_filename`; with a bad config entry (validation error).
+- [ ] Debug log for `custom_components.grok_oauth` shows `cli-chat-proxy.grok.com` vs `api.x.ai` and does not print tokens or emails.
+
+## D. Voice
+
+- [ ] Assist pipeline: Grok Voice STT → Grok conversation → Grok Voice TTS.
+- [ ] English satellite (16 kHz WAV): transcript is not empty; reply is spoken.
+- [ ] Non-English Assist language (for example `pt-BR` or `de-DE`): STT uses that language, not `en`.
+- [ ] 24 kHz source (if you have one) is accepted.
+- [ ] TTS voice list loads. Switching voice works.
+- [ ] If `api.x.ai` 402s, STT/TTS still succeed via grok.com (debug log).
+- [ ] Failed STT returns an Assist error, not a hang.
+
+## E. Imagine / AI Task
+
+- [ ] `ai_task.generate_image` or `grok_oauth.generate_image` returns an image. 1k and 16:9 still work.
+- [ ] `ai_task.generate_data` unstructured: plain text.
+- [ ] `ai_task.generate_data` with a structure: valid JSON, not a markdown-wrapped failure.
+- [ ] No Imagine model on the AI Task: generate_image errors with a clear message.
+
+## F. Auth durability
+
+- [ ] Restart HA: session still works.
+- [ ] Diagnostics: no access/refresh/id token, no email.
+- [ ] Remove the integration: re-add requires a new login (refresh token revoked). HA does not get stuck if revoke 4xxs.
+- [ ] Reauth with the same account succeeds; a different account → `wrong_account`.
+
+## G. Upgrade from 0.4.0
+
+- [ ] Install 0.4.0, add SuperGrok, create a named conversation agent, point Assist at Grok STT/TTS.
+- [ ] Upgrade to this branch, restart. Existing conversation entity ids unchanged. Prompt and Control Home Assistant still apply. Voice pipeline still selected.
+
+## H. Must still be true
+
+- [ ] Realtime is not in the picker. `grok_oauth.create_realtime_session` is not registered.
+- [ ] Domain remains `grok_oauth`. Services remain `grok_oauth.generate_content` / `generate_image`.
+- [ ] `pytest` green. Hassfest + HACS Action green.
+- [ ] Ruff clean on `custom_components/` and `tests/`.
+
+When this is green: merge `improve/0.5.0-hardening` to `main`, tag `0.5.0`. HACS default-store is a follow-up, not this branch.

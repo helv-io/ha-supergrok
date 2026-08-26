@@ -27,15 +27,37 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Changelog body
+        if: steps.release.outputs.exists != 'true'
+        id: notes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          lines = text.splitlines()
+          body = []
+          capture = False
+          for line in lines:
+              if line.startswith("## [") and tag in line.split("]")[0]:
+                  capture = True
+                  continue
+              if capture and line.startswith("## ["):
+                  break
+              if capture:
+                  body.append(line)
+          notes = "\n".join(body).strip() or f"Release {tag}."
+          Path("release_notes.md").write_text(notes + "\n", encoding="utf-8")
+          PY
+
       - name: Create GitHub Release
         if: steps.release.outputs.exists != 'true'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          body: |
-            Automated release for ${{ github.ref_name }}.
-            See CHANGELOG.md for details.
+          body_path: release_notes.md
           draft: false
           prerelease: false
         continue-on-error: true
