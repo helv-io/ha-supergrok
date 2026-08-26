@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import base64
-import json
-import re
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -35,8 +33,6 @@ _UNSUPPORTED_SCHEMA_KEYS = {
     "unevaluatedProperties",
     "patternProperties",
 }
-
-_JSON_FENCE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
 
 
 def _sanitize_tool_schema(schema: Any) -> dict[str, Any]:
@@ -181,28 +177,6 @@ def chat_log_to_messages(chat_log: conversation.ChatLog) -> list[dict[str, Any]]
             messages.append({"role": role, "content": content.content})
 
     return messages
-
-
-def extract_json_object(text: str) -> Any:
-    """Parse JSON, including markdown-fenced or trailing-prose payloads."""
-    stripped = (text or "").strip()
-    try:
-        return json.loads(stripped)
-    except json.JSONDecodeError:
-        pass
-    if match := _JSON_FENCE.search(stripped):
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            pass
-    start = stripped.find("{")
-    end = stripped.rfind("}")
-    if start != -1 and end > start:
-        try:
-            return json.loads(stripped[start : end + 1])
-        except json.JSONDecodeError:
-            pass
-    raise json.JSONDecodeError("No JSON object found", stripped, 0)
 
 
 async def _transform_stream(
