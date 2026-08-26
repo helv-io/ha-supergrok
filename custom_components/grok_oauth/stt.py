@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable
 import io
-from typing import TYPE_CHECKING
 import wave
+from collections.abc import AsyncIterable
+from typing import TYPE_CHECKING
 
 from homeassistant.components import stt
 from homeassistant.config_entries import ConfigEntry
@@ -13,7 +13,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_SELECTED_MODELS, DEFAULT_STT_NAME, DOMAIN, LOGGER, STT_HA_LANGUAGES
+from .const import (
+    CONF_SELECTED_MODELS,
+    DEFAULT_STT_NAME,
+    DOMAIN,
+    LOGGER,
+    STT_HA_LANGUAGES,
+)
 from .models import has_voice
 
 if TYPE_CHECKING:
@@ -77,13 +83,17 @@ class GrokSTTEntity(stt.SpeechToTextEntity):
     @property
     def supported_sample_rates(self) -> list[stt.AudioSampleRates]:
         """Sample rates that overlap HA Assist and xAI STT (8k–48k)."""
-        return [
+        rates = [
             stt.AudioSampleRates.SAMPLERATE_8000,
             stt.AudioSampleRates.SAMPLERATE_16000,
             stt.AudioSampleRates.SAMPLERATE_22000,
             stt.AudioSampleRates.SAMPLERATE_44100,
             stt.AudioSampleRates.SAMPLERATE_48000,
         ]
+        extra = getattr(stt.AudioSampleRates, "SAMPLERATE_24000", None)
+        if extra is not None and extra not in rates:
+            rates.insert(3, extra)
+        return rates
 
     @property
     def supported_channels(self) -> list[stt.AudioChannels]:
@@ -140,7 +150,6 @@ class GrokSTTEntity(stt.SpeechToTextEntity):
                 audio=container,
                 filename=filename,
                 content_type=content_type,
-                language="en",
                 sample_rate=pcm_rate,
                 raw_pcm=raw_pcm,
                 channels=int(metadata.channel.value),

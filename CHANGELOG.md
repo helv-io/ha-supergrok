@@ -9,6 +9,38 @@ The integration version is `custom_components/grok_oauth/manifest.json` → `ver
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-26
+
+### Added
+
+- Conversation replies stream into Assist instead of arriving in one dump.
+- Image attachments on conversation / AI Task and optional `image_filename` on `generate_content`.
+- Temperature and max-tokens on conversation and AI Task subentries.
+- Structured `generate_data` accepts JSON even when Grok wraps it in markdown.
+- Token revoke when the integration is removed.
+- Live model ids from the account are merged into the chat/Imagine pickers.
+- GitHub bug report template and an unauthenticated nightly smoke check against auth.x.ai.
+
+### Fixed
+
+- Voice STT talks to the SuperGrok CLI proxy (not only `api.x.ai`).
+- STT accepts 24 kHz audio. Empty-transcript logs no longer print the `preview` function.
+- 429 responses retry with backoff instead of failing the request.
+- TTS does not POST twice when the gateway already returned audio.
+- Device-code login survives a userinfo failure. Unique ids come from `sub` / JWT, never a token prefix.
+- Voice-only installs no longer invent a Grok 4.6 conversation agent.
+- Hitting the tool-call limit still produces a final assistant reply.
+- Diagnostics redact account email and name.
+
+### Changed
+
+- Identify as `ha-supergrok` on grok.com (still send the CLI auth header; fall back to `grok-shell` if that host 401/403s).
+- Media (Voice / Imagine) prefers `cli-chat-proxy.grok.com` the same way chat already did.
+- README restores an unofficial / not affiliated notice.
+- Conversation / AI Task entities use `has_entity_name` (unique ids unchanged). Voice STT/TTS keep an explicit engine name so Assist TTS does not fail with "TTS engine name is not set."
+- Voice still advertises Assist languages so Grok can be used on any pipeline, but `/v1/tts` and `/v1/stt` no longer send `language` (xAI auto-detects).
+- README uses the official Grok mark (`logo.svg`).
+
 ## [0.4.0] - 2026-08-16
 
 ### Added

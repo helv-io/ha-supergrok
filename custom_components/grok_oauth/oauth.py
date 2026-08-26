@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import json
 import secrets
 import time
 from dataclasses import dataclass
@@ -13,17 +14,14 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import aiohttp
 
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.config_entry_oauth2_flow import LocalOAuth2ImplementationWithPkce
-
 from .const import (
-    DOMAIN,
     LOGGER,
     OAUTH_AUTHORIZE_URL,
     OAUTH_CLIENT_ID,
     OAUTH_DEVICE_GRANT,
     OAUTH_DEVICE_URL,
     OAUTH_REDIRECT_URI,
+    OAUTH_REVOKE_URL,
     OAUTH_SCOPE,
     OAUTH_TOKEN_URL,
     OAUTH_USERINFO_URL,
@@ -92,6 +90,46 @@ class OAuthTokens:
         return time.time() >= (self.expires_at - skew)
 
 
+def jwt_claims(token: str | None) -> dict[str, Any]:
+    """Decode an unsigned JWT payload. Returns {} if the token is not a JWT."""
+    if not token:
+        return {}
+    parts = token.split(".")
+    if len(parts) != 3:
+        return {}
+    padded = parts[1] + "=" * (-len(parts[1]) % 4)
+    try:
+        claims = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+    except (ValueError, json.JSONDecodeError):
+        return {}
+    return claims if isinstance(claims, dict) else {}
+
+
+def account_unique_id(
+    account: dict[str, Any], tokens: OAuthTokens | dict[str, Any] | None = None
+) -> str | None:
+    """Stable account id: userinfo sub, then JWT sub/email, then email.
+
+    Never use a token prefix. A missing id means setup should abort.
+    """
+    if sub := account.get("sub"):
+        return str(sub)
+    token_data: dict[str, Any] = {}
+    if isinstance(tokens, OAuthTokens):
+        token_data = tokens.as_dict()
+    elif isinstance(tokens, dict):
+        token_data = tokens
+    for candidate in (token_data.get("id_token"), token_data.get("access_token")):
+        claims = jwt_claims(candidate if isinstance(candidate, str) else None)
+        if sub := claims.get("sub"):
+            return str(sub)
+        if email := claims.get("email"):
+            return str(email)
+    if email := account.get("email"):
+        return str(email)
+    return None
+
+
 def _expires_at_from_payload(payload: dict[str, Any]) -> int:
     """Compute a unix expiry, preferring expires_in then JWT exp."""
     if expires_in := payload.get("expires_in"):
@@ -99,18 +137,11 @@ def _expires_at_from_payload(payload: dict[str, Any]) -> int:
             return int(time.time()) + int(expires_in)
         except (TypeError, ValueError):
             pass
-    token = payload.get("access_token") or ""
-    parts = token.split(".")
-    if len(parts) == 3:
-        import base64
-        import json
-
-        padded = parts[1] + "=" * (-len(parts[1]) % 4)
+    claims = jwt_claims(payload.get("access_token") or "")
+    if exp := claims.get("exp"):
         try:
-            claims = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
-            if exp := claims.get("exp"):
-                return int(exp)
-        except (ValueError, json.JSONDecodeError):
+            return int(exp)
+        except (TypeError, ValueError):
             pass
     return int(time.time()) + 900
 
@@ -345,35 +376,32 @@ async def refresh_tokens(
     return tokens_from_payload(payload, previous=tokens)
 
 
-class GrokOAuth2Implementation(LocalOAuth2ImplementationWithPkce):
-    """SuperGrok authorization-code + PKCE using the registered loopback URI."""
+async def revoke_tokens(session: aiohttp.ClientSession, tokens: OAuthTokens) -> None:
+    """Best-effort RFC 7009 revoke of the refresh token (then access token).
 
-    def __init__(self, hass: HomeAssistant) -> None:
-        super().__init__(
-            hass,
-            DOMAIN,
-            OAUTH_CLIENT_ID,
-            OAUTH_AUTHORIZE_URL,
-            OAUTH_TOKEN_URL,
-            client_secret="",
-        )
-
-    @property
-    def name(self) -> str:
-        """Name shown in the HA OAuth picker."""
-        return "SuperGrok"
-
-    @property
-    def redirect_uri(self) -> str:
-        """xAI only accepts the Grok CLI loopback, not My Home Assistant."""
-        return OAUTH_REDIRECT_URI
-
-    @property
-    def extra_authorize_data(self) -> dict:
-        """Request offline access and attach PKCE."""
-        data = {"scope": OAUTH_SCOPE}
-        data.update(super().extra_authorize_data)
-        return data
+    Callers must not fail entry removal if this raises or returns 4xx.
+    """
+    for token in (tokens.refresh_token, tokens.access_token):
+        if not token:
+            continue
+        try:
+            async with session.post(
+                OAUTH_REVOKE_URL,
+                data={"token": token, "client_id": OAUTH_CLIENT_ID},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                if resp.status >= 400:
+                    LOGGER.warning("SuperGrok token revoke returned %s", resp.status)
+                else:
+                    LOGGER.debug("SuperGrok token revoked (%s)", resp.status)
+                    return
+        except (TimeoutError, aiohttp.ClientError) as err:
+            LOGGER.warning("SuperGrok token revoke failed: %s", err)
+            return
 
 
 async def fetch_userinfo(

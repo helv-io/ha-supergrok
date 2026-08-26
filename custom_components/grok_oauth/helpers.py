@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-import json
+import base64
+from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 from homeassistant.components import conversation
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 from homeassistant.helpers.json import json_dumps
 from voluptuous_openapi import convert
 
-from homeassistant.exceptions import HomeAssistantError
-
-from .const import LOGGER, MAX_TOOL_ITERATIONS, REALTIME_ENABLED
 from .client import ChatResult, GrokClient
+from .const import LOGGER, MAX_TOOL_ITERATIONS, REALTIME_ENABLED
 from .logutil import summarize_tools
-
 
 _UNSUPPORTED_SCHEMA_KEYS = {
     "oneOf",
@@ -45,7 +45,6 @@ def _sanitize_tool_schema(schema: Any) -> dict[str, Any]:
 
     schema_type = schema.get("type")
     if schema_type != "object":
-        # voluptuous_openapi sometimes emits a bare type or an array at the root.
         if "properties" not in schema:
             return {"type": "object", "properties": {}}
         schema["type"] = "object"
@@ -102,10 +101,43 @@ def format_tools(llm_api: llm.APIInstance) -> list[dict[str, Any]]:
     return tools
 
 
+def _image_data_url(path: Path, mime_type: str | None) -> str:
+    """Read an image file into a data URL. Caller must allow the path."""
+    if not path.exists():
+        raise HomeAssistantError(f"`{path}` does not exist")
+    mime = mime_type or "image/jpeg"
+    if not mime.startswith("image/"):
+        raise HomeAssistantError(f"Only image attachments are supported (`{path}` is {mime})")
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _user_content_with_attachments(content: conversation.UserContent) -> dict[str, Any]:
+    """Build an OpenAI-style user message, including image attachments."""
+    text = content.content or ""
+    attachments = getattr(content, "attachments", None) or ()
+    if not attachments:
+        return {"role": "user", "content": text}
+    parts: list[dict[str, Any]] = []
+    if text:
+        parts.append({"type": "text", "text": text})
+    for attachment in attachments:
+        path = Path(attachment.path)
+        mime = getattr(attachment, "mime_type", None)
+        parts.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": _image_data_url(path, mime)},
+            }
+        )
+    if not parts:
+        parts.append({"type": "text", "text": text or " "})
+    return {"role": "user", "content": parts}
+
+
 def chat_log_to_messages(chat_log: conversation.ChatLog) -> list[dict[str, Any]]:
     """Convert a Home Assistant chat log to chat-completion messages."""
     messages: list[dict[str, Any]] = []
-    pending_tool_calls: list[dict[str, Any]] = []
 
     for content in chat_log.content:
         if isinstance(content, conversation.ToolResultContent):
@@ -133,18 +165,42 @@ def chat_log_to_messages(chat_log: conversation.ChatLog) -> list[dict[str, Any]]
                     }
                     for tool_call in content.tool_calls
                 ]
-                pending_tool_calls = message["tool_calls"]
             messages.append(message)
+            continue
+
+        if isinstance(content, conversation.UserContent):
+            messages.append(_user_content_with_attachments(content))
             continue
 
         if content.content:
             role = "system" if content.role == "system" else content.role
             messages.append({"role": role, "content": content.content})
 
-    if pending_tool_calls:
-        # Keep the type checker quiet; unused besides documenting pairing.
-        _ = pending_tool_calls
     return messages
+
+
+async def _transform_stream(
+    events: AsyncIterator[dict[str, Any]],
+) -> AsyncIterator[conversation.AssistantContentDeltaDict]:
+    """Map Grok chat-completion stream events to HA deltas."""
+    started = False
+    async for event in events:
+        if not started:
+            yield {"role": "assistant"}
+            started = True
+        if content := event.get("content"):
+            yield {"content": content}
+        if event.get("tool_calls"):
+            yield {
+                "tool_calls": [
+                    llm.ToolInput(
+                        id=call["id"],
+                        tool_name=call["name"],
+                        tool_args=call["arguments"],
+                    )
+                    for call in event["tool_calls"]
+                ]
+            }
 
 
 async def async_run_chat_log(
@@ -154,13 +210,19 @@ async def async_run_chat_log(
     model: str,
     agent_id: str,
     max_tokens: int = 4096,
+    temperature: float | None = None,
     realtime: bool = False,
     voice: str = "eve",
+    response_format: dict[str, Any] | None = None,
 ) -> None:
     """Drive a chat log to an assistant final answer, executing HA tools."""
+    last_had_tools = False
     for iteration in range(MAX_TOOL_ITERATIONS):
         messages = chat_log_to_messages(chat_log)
         tools = format_tools(chat_log.llm_api) if chat_log.llm_api else None
+        force_final = last_had_tools and iteration == MAX_TOOL_ITERATIONS - 1
+        if force_final:
+            tools = None
         LOGGER.debug(
             "Turn %s/%s agent=%s model=%s realtime=%s messages=%s tools=%s",
             iteration + 1,
@@ -171,14 +233,15 @@ async def async_run_chat_log(
             len(messages),
             summarize_tools(tools),
         )
-        if realtime and REALTIME_ENABLED:
+        if realtime and REALTIME_ENABLED and not force_final:
             instructions = ""
             user_text = ""
             for message in messages:
                 if message.get("role") == "system":
                     instructions = str(message.get("content") or "")
                 elif message.get("role") == "user":
-                    user_text = str(message.get("content") or "")
+                    content = message.get("content") or ""
+                    user_text = content if isinstance(content, str) else ""
             try:
                 result: ChatResult = await client.realtime_text(
                     model=model,
@@ -194,40 +257,83 @@ async def async_run_chat_log(
                     messages=messages,
                     tools=tools,
                     max_tokens=max_tokens,
+                    temperature=temperature,
+                    response_format=response_format,
                 )
+            await _apply_chat_result(chat_log, agent_id, result)
         else:
-            result = await client.chat(
-                model=model,
-                messages=messages,
-                tools=tools,
-                max_tokens=max_tokens,
-            )
-
-        if result.tool_calls and chat_log.llm_api:
-            tool_inputs = [
-                llm.ToolInput(
-                    id=call["id"],
-                    tool_name=call["name"],
-                    tool_args=call["arguments"],
+            try:
+                stream = client.chat_stream(
+                    model=model,
+                    messages=messages,
+                    tools=tools,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    response_format=response_format,
                 )
-                for call in result.tool_calls
-            ]
-            async for _ in chat_log.async_add_assistant_content(
+                async for _ in chat_log.async_add_delta_content_stream(
+                    agent_id, _transform_stream(stream)
+                ):
+                    pass
+            except HomeAssistantError as err:
+                LOGGER.warning("Chat stream failed (%s); falling back to non-stream", err)
+                result = await client.chat(
+                    model=model,
+                    messages=messages,
+                    tools=tools,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    response_format=response_format,
+                )
+                await _apply_chat_result(chat_log, agent_id, result)
+
+        last_content = chat_log.content[-1] if chat_log.content else None
+        last_had_tools = bool(
+            isinstance(last_content, conversation.AssistantContent) and last_content.tool_calls
+        )
+        if not chat_log.unresponded_tool_results:
+            if not isinstance(last_content, conversation.AssistantContent):
+                chat_log.async_add_assistant_content_without_tools(
+                    conversation.AssistantContent(agent_id=agent_id, content=" ")
+                )
+            break
+    else:
+        if not isinstance(chat_log.content[-1], conversation.AssistantContent) or (
+            chat_log.content[-1].tool_calls and chat_log.unresponded_tool_results
+        ):
+            chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(
                     agent_id=agent_id,
-                    content=result.text or None,
-                    tool_calls=tool_inputs,
+                    content="I reached the tool-call limit before finishing that request.",
                 )
-            ):
-                pass
-            if not chat_log.unresponded_tool_results:
-                break
-            continue
+            )
 
-        chat_log.async_add_assistant_content_without_tools(
+
+async def _apply_chat_result(
+    chat_log: conversation.ChatLog, agent_id: str, result: ChatResult
+) -> None:
+    """Apply a non-stream ChatResult onto the chat log."""
+    if result.tool_calls and chat_log.llm_api:
+        tool_inputs = [
+            llm.ToolInput(
+                id=call["id"],
+                tool_name=call["name"],
+                tool_args=call["arguments"],
+            )
+            for call in result.tool_calls
+        ]
+        async for _ in chat_log.async_add_assistant_content(
             conversation.AssistantContent(
                 agent_id=agent_id,
-                content=result.text or " ",
+                content=result.text or None,
+                tool_calls=tool_inputs,
             )
+        ):
+            pass
+        return
+    chat_log.async_add_assistant_content_without_tools(
+        conversation.AssistantContent(
+            agent_id=agent_id,
+            content=result.text or " ",
         )
-        break
+    )

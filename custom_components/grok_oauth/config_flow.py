@@ -6,15 +6,14 @@ import secrets
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import (
+    SOURCE_REAUTH,
     ConfigEntry,
     ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryFlow,
     OptionsFlow,
-    SOURCE_REAUTH,
     SubentryFlowResult,
 )
 from homeassistant.const import CONF_LLM_HASS_API, CONF_NAME, CONF_PROMPT
@@ -28,10 +27,13 @@ from .const import (
     CONF_ACCOUNT_NAME,
     CONF_CHAT_MODEL,
     CONF_IMAGE_MODEL,
+    CONF_MAX_TOKENS,
     CONF_SELECTED_MODELS,
+    CONF_TEMPERATURE,
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CHAT_MODEL,
     DEFAULT_CONVERSATION_NAME,
+    DEFAULT_MAX_TOKENS,
     DEFAULT_NAME,
     DOMAIN,
     LOGGER,
@@ -51,6 +53,7 @@ from .models import (
 )
 from .oauth import (
     GrokOAuthError,
+    account_unique_id,
     build_authorize_url,
     exchange_authorization_code,
     fetch_userinfo,
@@ -215,7 +218,11 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._oauth_error = "oauth_failed"
                 return
             self._tokens = tokens.as_dict()
-            self._account = await fetch_userinfo(session, tokens.access_token)
+            try:
+                self._account = await fetch_userinfo(session, tokens.access_token)
+            except Exception:  # noqa: BLE001
+                LOGGER.warning("SuperGrok userinfo failed after device login; continuing")
+                self._account = {}
 
         self._oauth_error = None
         return self.async_show_progress(
@@ -247,12 +254,11 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def _async_after_login(self) -> ConfigFlowResult:
         """Set unique id and either update reauth or show the model picker."""
-        account_id = (
-            self._account.get("sub")
-            or self._account.get("email")
-            or (self._tokens or {}).get("access_token", "")[:16]
-        )
-        await self.async_set_unique_id(str(account_id))
+        account_id = account_unique_id(self._account, self._tokens)
+        if not account_id:
+            LOGGER.warning("SuperGrok login succeeded but no account id was available")
+            return self.async_abort(reason="oauth_error")
+        await self.async_set_unique_id(account_id)
 
         if self.source == SOURCE_REAUTH or self._reauth_entry:
             entry = self._reauth_entry or self._get_reauth_entry()
@@ -364,7 +370,7 @@ class GrokOAuthOptionsFlow(OptionsFlow):
                 data={**self.config_entry.data, CONF_SELECTED_MODELS: selected},
             )
             await self.hass.config_entries.async_reload(self.config_entry.entry_id)
-            return self.async_create_entry(title="", data={CONF_SELECTED_MODELS: selected})
+            return self.async_create_entry(title="", data={})
 
         return self.async_show_form(step_id="init", data_schema=_models_schema(current))
 
@@ -476,6 +482,14 @@ class GrokSubentryFlowHandler(ConfigSubentryFlow):
                 }
             )
 
+        live_models: list[str] = []
+        client = getattr(self._get_entry(), "runtime_data", None)
+        if client is not None and hasattr(client, "list_models"):
+            try:
+                live_models = await client.list_models()
+            except Exception:  # noqa: BLE001
+                live_models = []
+
         schema[
             vol.Required(
                 CONF_CHAT_MODEL,
@@ -483,8 +497,20 @@ class GrokSubentryFlowHandler(ConfigSubentryFlow):
             )
         ] = selector.SelectSelector(
             selector.SelectSelectorConfig(
-                options=chat_model_options(),
+                options=chat_model_options(live_models),
                 mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        )
+        schema[vol.Optional(CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS)] = (
+            selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=256, max=16384, step=256, mode=selector.NumberSelectorMode.BOX
+                )
+            )
+        )
+        schema[vol.Optional(CONF_TEMPERATURE)] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0, max=2, step=0.1, mode=selector.NumberSelectorMode.BOX
             )
         )
 
@@ -498,7 +524,7 @@ class GrokSubentryFlowHandler(ConfigSubentryFlow):
                 )
             ] = selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=image_model_options(),
+                    options=image_model_options(live_models),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             )
