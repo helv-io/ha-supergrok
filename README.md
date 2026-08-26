@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="custom_components/grok_oauth/brand/logo@2x.png" width="128" alt="SuperGrok OAuth">
+  <img src="logo.svg" alt="SuperGrok" width="96" height="96">
 </p>
 
 <h1 align="center">SuperGrok OAuth</h1>
