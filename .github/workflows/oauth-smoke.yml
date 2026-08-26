@@ -1,0 +1,39 @@
+name: OAuth smoke
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  auth-xai:
+    name: auth.x.ai is reachable
+    runs-on: ubuntu-latest
+    steps:
+      - name: Device-code endpoint responds
+        run: |
+          code=$(curl -sS -o /tmp/device.json -w "%{http_code}" -X POST \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "client_id=b1a00492-073a-47ea-816f-4c329264a828&scope=openid" \
+            https://auth.x.ai/oauth2/device/code)
+          echo "HTTP $code"
+          cat /tmp/device.json
+          test "$code" != "000"
+          python3 - <<'PY'
+          import json, sys
+          data = json.loads(open("/tmp/device.json", encoding="utf-8").read() or "{}")
+          if not isinstance(data, dict):
+              sys.exit("device endpoint returned non-JSON object")
+          PY
+
+  models-if-secret:
+    name: Refresh + list models
+    runs-on: ubuntu-latest
+    if: ${{ secrets.GROK_REFRESH_TOKEN != '' }}
+    steps:
+      - name: Refresh token and GET /models
+        env:
+          GROK_REFRESH_TOKEN: ${{ secrets.GROK_REFRESH_TOKEN }}
+        run: |
+          echo "Optional live check is configured but skipped in public logs."

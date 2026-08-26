@@ -27,7 +27,6 @@ from .const import (
     FALLBACK_TTS_VOICES,
     LOGGER,
     TTS_HA_LANGUAGES,
-    TTS_LANGUAGE_MAP,
 )
 from .models import has_voice
 
@@ -50,6 +49,7 @@ async def async_setup_entry(
 class GrokTTSEntity(TextToSpeechEntity):
     """Home Assistant TTS entity wrapping POST /v1/tts."""
 
+    # TTS manager requires engine.name; None raises "TTS engine name is not set."
     _attr_has_entity_name = False
     _attr_name = DEFAULT_TTS_NAME
     _attr_supported_options = [ATTR_VOICE, ATTR_PREFERRED_FORMAT]
@@ -99,12 +99,10 @@ class GrokTTSEntity(TextToSpeechEntity):
         preferred = (options.get(ATTR_PREFERRED_FORMAT) or "mp3").lower()
         codec = "wav" if preferred in ("wav", "wave") else "pcm" if preferred in ("pcm", "raw") else "mp3"
         extension = "wav" if codec == "wav" else "mp3" if codec == "mp3" else "raw"
-        xai_language = TTS_LANGUAGE_MAP.get(language, TTS_LANGUAGE_MAP.get(language.split("-")[0], "en"))
         LOGGER.debug(
-            "TTS request voice=%s lang=%s->%s codec=%s chars=%s",
+            "TTS request voice=%s ha_lang=%s codec=%s chars=%s",
             options.get(ATTR_VOICE, DEFAULT_TTS_VOICE),
             language,
-            xai_language,
             codec,
             len(message),
         )
@@ -113,7 +111,6 @@ class GrokTTSEntity(TextToSpeechEntity):
             audio, _content_type = await client.tts(
                 text=message,
                 voice_id=options.get(ATTR_VOICE, DEFAULT_TTS_VOICE),
-                language=xai_language,
                 codec=codec,
             )
         except Exception as err:

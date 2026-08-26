@@ -8,7 +8,12 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_CHAT_MODEL, CONF_SELECTED_MODELS
+from .const import (
+    CONF_ACCOUNT_EMAIL,
+    CONF_ACCOUNT_NAME,
+    CONF_CHAT_MODEL,
+    CONF_SELECTED_MODELS,
+)
 from .models import chat_models, first_image_model, has_realtime, has_voice
 
 TO_REDACT = {
@@ -17,7 +22,40 @@ TO_REDACT = {
     "id_token",
     "token",
     "value",
+    "account_email",
+    "account_name",
+    "email",
 }
+
+_REDACTED = "**REDACTED**"
+
+
+def _identity_secrets(entry: ConfigEntry) -> tuple[str, ...]:
+    """Raw account email and name, if present."""
+    secrets: list[str] = []
+    for key in (CONF_ACCOUNT_EMAIL, CONF_ACCOUNT_NAME):
+        value = entry.data.get(key)
+        if isinstance(value, str) and value:
+            secrets.append(value)
+    return tuple(secrets)
+
+
+def _scrub_identity(value: Any, secrets: tuple[str, ...]) -> Any:
+    """Replace account email/name substrings in every string field."""
+    if not secrets:
+        return value
+    if isinstance(value, str):
+        for secret in secrets:
+            if secret in value:
+                value = value.replace(secret, _REDACTED)
+        return value
+    if isinstance(value, dict):
+        return {key: _scrub_identity(item, secrets) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_scrub_identity(item, secrets) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_scrub_identity(item, secrets) for item in value)
+    return value
 
 
 async def async_get_config_entry_diagnostics(
@@ -51,4 +89,5 @@ async def async_get_config_entry_diagnostics(
         payload["media_base"] = getattr(client, "_media_base", None)
         payload["token_expired"] = client.tokens.is_expired()
         payload["recent_events"] = list(getattr(client, "recent_events", []))
-    return async_redact_data(payload, TO_REDACT)
+    redacted = async_redact_data(payload, TO_REDACT)
+    return _scrub_identity(redacted, _identity_secrets(entry))

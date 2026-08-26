@@ -13,6 +13,9 @@
         "description": "1. Open [this SuperGrok sign-in page]({authorize_url}) and approve access.\n\n2. After you approve, the browser goes to `{redirect_uri}` and fails to connect. That is expected.\n\n3. Copy the **full URL** from the address bar (it contains `code=`) and paste it below. A bare authorization code also works.",
         "data": {
           "callback_url": "Callback URL"
+        },
+        "data_description": {
+          "callback_url": "Paste the full localhost callback URL (includes state=). A bare authorization code also works but skips the CSRF check."
         }
       },
       "auth": {
@@ -59,7 +62,7 @@
       "access_denied": "Access was denied on the xAI authorization page.",
       "reauth_successful": "SuperGrok login was refreshed.",
       "wrong_account": "You signed in with a different SuperGrok account.",
-      "tier_blocked": "This SuperGrok account is not entitled to the OAuth API surface.",
+      "tier_blocked": "This SuperGrok account is not entitled to the OAuth API surface. SuperGrok / X Premium+ is required; a developer API key is a different product.",
       "aborted": "Login was cancelled.",
       "missing_configuration": "SuperGrok OAuth is missing its OAuth implementation.",
       "missing_credentials": "SuperGrok OAuth credentials are missing.",
@@ -85,10 +88,14 @@
             "name": "Name",
             "prompt": "Instructions",
             "llm_hass_api": "Control Home Assistant",
-            "chat_model": "Chat model"
+            "chat_model": "Chat model",
+            "max_tokens": "Maximum tokens",
+            "temperature": "Temperature"
           },
           "data_description": {
-            "prompt": "Instruct how Grok should respond. This can be a template."
+            "prompt": "Instruct how Grok should respond. This can be a template.",
+            "max_tokens": "Upper bound on the reply length.",
+            "temperature": "Optional creativity (0 to 2). Leave empty for the model default."
           }
         }
       },
@@ -110,7 +117,9 @@
           "data": {
             "name": "Name",
             "chat_model": "Chat model",
-            "image_model": "Imagine model"
+            "image_model": "Imagine model",
+            "max_tokens": "Maximum tokens",
+            "temperature": "Temperature"
           },
           "data_description": {
             "image_model": "Used for generate_image / Imagine. Leave unset to disable image generation on this entity."
@@ -144,7 +153,8 @@
       "fields": {
         "config_entry": { "name": "SuperGrok OAuth entry", "description": "Configured SuperGrok OAuth integration." },
         "prompt": { "name": "Prompt", "description": "Text to send to Grok." },
-        "model": { "name": "Model", "description": "Optional chat model override." }
+        "model": { "name": "Model", "description": "Optional chat model override." },
+        "image_filename": { "name": "Image files", "description": "Optional local image paths to attach to the prompt." }
       }
     },
     "generate_image": {

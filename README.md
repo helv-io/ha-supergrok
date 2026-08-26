@@ -1,11 +1,15 @@
 <p align="center">
-  <img src="custom_components/grok_oauth/brand/logo@2x.png" width="128" alt="SuperGrok OAuth">
+  <img src="logo.svg" alt="SuperGrok" width="96" height="96">
 </p>
 
 <h1 align="center">SuperGrok OAuth</h1>
 
 <p align="center">
   SuperGrok in Home Assistant via OAuth. Conversation, Voice, Imagine. No API key. SpaceXAI.
+</p>
+
+<p align="center">
+  Unofficial community integration. Not affiliated with xAI or Home Assistant. OAuth, the Grok CLI proxy, and available models can change without notice.
 </p>
 
 <p align="center">
@@ -67,6 +71,9 @@ Point [Assist](https://www.home-assistant.io/voice_control/) at Grok Voice STT, 
 - SuperGrok or X Premium+
 
 ## Troubleshooting
+
+**Chat or Voice returns 402 / 403**
+This integration uses your SuperGrok / X Premium+ subscription via OAuth, not an xAI developer API key. If the account is not entitled, sign-in aborts with a tier error. If chat works but Voice fails, check logs for `cli-chat-proxy.grok.com` vs `api.x.ai`.
 
 **`redirect_uri does not match any registered URI`**
 You used My Home Assistant as the callback. Use device code (the default), or browser login and paste the localhost callback.

@@ -40,6 +40,11 @@ def test_has_realtime_stays_off_when_legacy_config_lists_it() -> None:
     ]
 
 
+def test_voice_only_mints_no_chat_subentries() -> None:
+    """Voice-only installs do not invent a grok-4.6 conversation or AI Task."""
+    assert build_initial_subentries([MODEL_VOICE]) == []
+
+
 def test_build_initial_subentries_covers_chat_and_ai_task() -> None:
     """First-time setup mints one conversation per chat model plus AI Task."""
     subentries = build_initial_subentries(
