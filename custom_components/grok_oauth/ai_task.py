@@ -25,7 +25,8 @@ from .const import (
     LOGGER,
     SUBENTRY_TYPE_AI_TASK,
 )
-from .helpers import async_run_chat_log, extract_json_object
+from .helpers import async_run_chat_log
+from .jsonutil import extract_json_object
 from .models import chat_models, config_option, first_image_model
 
 if TYPE_CHECKING:

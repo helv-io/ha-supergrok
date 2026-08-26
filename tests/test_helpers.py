@@ -1,4 +1,4 @@
-"""Chat helpers: JSON extraction and voice-only subentries. No live xAI."""
+"""JSON extraction helpers. No live xAI or Home Assistant imports."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from custom_components.grok_oauth.helpers import extract_json_object
+from custom_components.grok_oauth.jsonutil import extract_json_object
 
 
 def test_extract_json_object_plain() -> None:
