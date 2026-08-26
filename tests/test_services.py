@@ -7,8 +7,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from voluptuous import MultipleInvalid
 
-from custom_components.grok_oauth import async_setup
-from custom_components.grok_oauth.const import (
+from custom_components.supergrok import async_setup
+from custom_components.supergrok.const import (
     DOMAIN,
     SERVICE_CREATE_REALTIME_SESSION,
     SERVICE_GENERATE_CONTENT,

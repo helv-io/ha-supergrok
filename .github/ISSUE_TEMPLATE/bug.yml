@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Unofficial community integration. Include logs with `custom_components.grok_oauth` at debug.
+        Unofficial community integration. Include logs with `custom_components.supergrok` at debug.
   - type: input
     id: ha_version
     attributes:
@@ -18,7 +18,7 @@ body:
     id: integration_version
     attributes:
       label: SuperGrok OAuth version
-      placeholder: "0.5.0"
+      placeholder: "0.6.0"
     validations:
       required: true
   - type: dropdown
@@ -50,6 +50,6 @@ body:
     id: logs
     attributes:
       label: Debug log snippet
-      description: Settings → System → Logs → custom_components.grok_oauth = debug. Redact tokens.
+      description: Settings → System → Logs → custom_components.supergrok = debug. Redact tokens.
     validations:
       required: true

@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from custom_components.grok_oauth.const import (
+from custom_components.supergrok.const import (
     CHAT_API_BASES,
     DEFAULT_NAME,
     DOMAIN,
@@ -18,8 +18,8 @@ from custom_components.grok_oauth.const import (
     SERVICE_GENERATE_CONTENT,
     SERVICE_GENERATE_IMAGE,
 )
-from custom_components.grok_oauth.logutil import preview
-from custom_components.grok_oauth.oauth import (
+from custom_components.supergrok.logutil import preview
+from custom_components.supergrok.oauth import (
     GrokOAuthError,
     OAuthTokens,
     account_unique_id,
@@ -34,8 +34,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_public_contract_is_unchanged() -> None:
-    """Domain, OAuth client, loopback redirect, proxy order, and services stay put."""
-    assert DOMAIN == "grok_oauth"
+    """OAuth client, loopback redirect, proxy order, and service names stay put."""
+    assert DOMAIN == "supergrok"
     assert OAUTH_CLIENT_ID == "b1a00492-073a-47ea-816f-4c329264a828"
     assert OAUTH_REDIRECT_URI == "http://127.0.0.1:56121/callback"
     assert CHAT_API_BASES == (
@@ -51,23 +51,40 @@ def test_public_contract_is_unchanged() -> None:
 
 def test_public_name_and_github_urls() -> None:
     """Display name and GitHub URLs follow the ha-supergrok rename."""
-    manifest = json.loads(
-        (ROOT / "custom_components" / "grok_oauth" / "manifest.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    integration = ROOT / "custom_components" / "supergrok"
+    manifest = json.loads((integration / "manifest.json").read_text(encoding="utf-8"))
     hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    services = (integration / "services.yaml").read_text(encoding="utf-8")
 
-    assert manifest["domain"] == "grok_oauth"
+    assert not (ROOT / "custom_components" / "grok_oauth").exists()
+    assert integration.is_dir()
+    assert manifest["domain"] == "supergrok"
     assert manifest["name"] == "SuperGrok OAuth"
+    assert manifest["version"] == "0.6.0"
+    assert "ai_task" in manifest["dependencies"]
+    assert manifest["loggers"] == ["custom_components.supergrok"]
     assert manifest["documentation"] == "https://github.com/helv-io/ha-supergrok"
     assert manifest["issue_tracker"] == "https://github.com/helv-io/ha-supergrok/issues"
     assert re.match(r"^\d+\.\d+\.\d+$", manifest["version"])
     assert hacs["name"] == "SuperGrok OAuth"
+    assert hacs.get("content_in_root") is not True
+    assert "filename" not in hacs
     assert "ha-grok-oauth" not in readme
     assert "repository=ha-supergrok" in readme
+    assert "domain=supergrok" in readme
     assert "<h1 align=\"center\">SuperGrok OAuth</h1>" in readme
+    assert "integration: grok_oauth" not in services
+    assert "integration: supergrok" in services
+
+
+def test_platforms_have_modules() -> None:
+    """Forwarded platforms must exist as modules so setup does not raise Platform not found."""
+    integration = ROOT / "custom_components" / "supergrok"
+    init = (integration / "__init__.py").read_text(encoding="utf-8")
+    assert "Platform.AI_TASK" in init
+    for name in ("ai_task", "conversation", "stt", "tts"):
+        assert (integration / f"{name}.py").is_file(), f"missing platform {name}"
 
 
 def test_parse_full_callback_url() -> None:
