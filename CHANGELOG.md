@@ -23,7 +23,7 @@ The integration version is `custom_components/grok_oauth/manifest.json` → `ver
 
 ### Fixed
 
-- Voice STT talks to the SuperGrok CLI proxy (not only `api.x.ai`) and uses the Assist language instead of hardcoded English.
+- Voice STT talks to the SuperGrok CLI proxy (not only `api.x.ai`).
 - STT accepts 24 kHz audio. Empty-transcript logs no longer print the `preview` function.
 - 429 responses retry with backoff instead of failing the request.
 - TTS does not POST twice when the gateway already returned audio.
@@ -38,6 +38,8 @@ The integration version is `custom_components/grok_oauth/manifest.json` → `ver
 - Media (Voice / Imagine) prefers `cli-chat-proxy.grok.com` the same way chat already did.
 - README restores an unofficial / not affiliated notice.
 - Conversation / AI Task entities use `has_entity_name` (unique ids unchanged). Voice STT/TTS keep an explicit engine name so Assist TTS does not fail with "TTS engine name is not set."
+- Voice still advertises Assist languages so Grok can be used on any pipeline, but `/v1/tts` and `/v1/stt` no longer send `language` (xAI auto-detects).
+- README uses the official Grok mark (`logo.svg`).
 
 ## [0.4.0] - 2026-08-16
 

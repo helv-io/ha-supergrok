@@ -678,16 +678,14 @@ class GrokClient:
         *,
         text: str,
         voice_id: str,
-        language: str = "en",
         codec: str = "mp3",
         sample_rate: int = 24000,
         speed: float = 1.0,
     ) -> tuple[bytes, str]:
-        """Synthesize speech via POST /v1/tts."""
+        """Synthesize speech via POST /v1/tts. Language is auto-detected by xAI."""
         body: dict[str, Any] = {
             "text": text,
             "voice_id": voice_id,
-            "language": language,
             "speed": speed,
             "output_format": {
                 "codec": codec,
@@ -695,7 +693,7 @@ class GrokClient:
             },
         }
         started = time.monotonic()
-        LOGGER.debug("TTS start voice=%s lang=%s codec=%s chars=%s", voice_id, language, codec, len(text))
+        LOGGER.debug("TTS start voice=%s codec=%s chars=%s", voice_id, codec, len(text))
         payload = await self._request(
             "POST",
             MEDIA_API_BASES,
@@ -734,7 +732,6 @@ class GrokClient:
         audio: bytes,
         filename: str,
         content_type: str,
-        language: str | None = None,
         sample_rate: int | None = None,
         raw_pcm: bytes | None = None,
         channels: int = 1,
@@ -743,13 +740,11 @@ class GrokClient:
 
         Assist hands us a complete buffer, so the realtime WebSocket is the
         wrong API (sending buffered PCM faster than wall-clock triggers
-        xAI's 'past start timer' 400).
+        xAI's 'past start timer' 400). Language is auto-detected by xAI.
         """
-        lang = language or "en"
         started = time.monotonic()
         LOGGER.debug(
-            "STT start lang=%s rate=%s ch=%s container=%sB pcm=%sB file=%s",
-            lang,
+            "STT start rate=%s ch=%s container=%sB pcm=%sB file=%s",
             sample_rate,
             channels,
             len(audio),
@@ -763,7 +758,6 @@ class GrokClient:
             form.add_field("audio_format", "pcm")
             form.add_field("sample_rate", str(sample_rate))
             form.add_field("vad_threshold", "0")
-            form.add_field("language", lang)
             form.add_field("format", "true")
             if channels > 1:
                 form.add_field("channels", str(channels))
@@ -774,7 +768,6 @@ class GrokClient:
 
         form = aiohttp.FormData()
         form.add_field("vad_threshold", "0")
-        form.add_field("language", lang)
         form.add_field("format", "true")
         form.add_field("file", audio, filename=filename, content_type=content_type)
         attempts.append((f"wav {len(audio)}B", form))
