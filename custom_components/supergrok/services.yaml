@@ -7,7 +7,7 @@ generate_content:
       required: true
       selector:
         config_entry:
-          integration: grok_oauth
+          integration: supergrok
     prompt:
       name: Prompt
       required: true
@@ -34,7 +34,7 @@ generate_image:
       required: true
       selector:
         config_entry:
-          integration: grok_oauth
+          integration: supergrok
     prompt:
       name: Prompt
       required: true
@@ -99,7 +99,7 @@ generate_image:
 #       required: true
 #       selector:
 #         config_entry:
-#           integration: grok_oauth
+#           integration: supergrok
 #     model:
 #       name: Realtime model
 #       required: false

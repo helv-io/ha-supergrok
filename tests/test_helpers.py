@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from custom_components.grok_oauth.jsonutil import extract_json_object
+from custom_components.supergrok.jsonutil import extract_json_object
 
 
 def test_extract_json_object_plain() -> None:

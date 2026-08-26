@@ -5,8 +5,8 @@ from __future__ import annotations
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.grok_oauth.const import CONF_SELECTED_MODELS, DOMAIN
-from custom_components.grok_oauth.diagnostics import async_get_config_entry_diagnostics
+from custom_components.supergrok.const import CONF_SELECTED_MODELS, DOMAIN
+from custom_components.supergrok.diagnostics import async_get_config_entry_diagnostics
 
 
 async def test_diagnostics_redact_tokens(hass: HomeAssistant) -> None:

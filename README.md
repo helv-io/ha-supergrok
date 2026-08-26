@@ -20,8 +20,18 @@
 
 <p align="center">
 <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=helv-io&repository=ha-supergrok&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store."></a>
-<a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=grok_oauth"><img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Open your Home Assistant instance and start setting up a new integration."></a>
+<a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=supergrok"><img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Open your Home Assistant instance and start setting up a new integration."></a>
 </p>
+
+## Upgrading from 0.5.x (reconfiguration required)
+
+0.6.0 changes the Home Assistant domain from `grok_oauth` to `supergrok`. Old config entries will not migrate.
+
+1. Update **SuperGrok OAuth** to 0.6.0 in HACS (same custom repository: `helv-io/ha-supergrok`).
+2. Remove the old integration entry if it is still listed (it is domain `grok_oauth` and is dead).
+3. Delete `/config/custom_components/grok_oauth` if that folder is still there. HACS installs the new domain as `/config/custom_components/supergrok` and may leave the old folder behind.
+4. Restart Home Assistant.
+5. Add **SuperGrok OAuth** and sign in again.
 
 ## What you get
 
@@ -35,14 +45,16 @@
 2. Download **SuperGrok OAuth**.
 3. Restart Home Assistant.
 
-Custom repository: HACS → Integrations → Custom repositories → `https://github.com/helv-io/ha-supergrok` → Integration.
+Custom repository: HACS → Integrations → Custom repositories → `https://github.com/helv-io/ha-supergrok` → Integration. HACS installs domain `supergrok` from `custom_components/supergrok/`.
 
-Manual: copy `custom_components/grok_oauth` to `/config/custom_components/grok_oauth/`.
+Manual: copy `custom_components/supergrok` to `/config/custom_components/supergrok/`.
+
+If you previously had `custom_components/grok_oauth`, delete that folder. Update via HACS, then reconfigure; the old `grok_oauth` entry is dead.
 
 ## Add the integration
 
 <p align="center">
-<a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=grok_oauth"><img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Open your Home Assistant instance and start setting up a new integration."></a>
+<a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=supergrok"><img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Open your Home Assistant instance and start setting up a new integration."></a>
 </p>
 
 Or: Settings → Devices & services → Add integration → SuperGrok OAuth.
@@ -58,8 +70,6 @@ Browser login is the backup (paste the localhost callback). After you approve, t
 ## Conversation agents
 
 After SuperGrok is set up, open the integration and use **Add → Conversation** to create an agent. Each agent has its own name, system prompt (template), Control Home Assistant setting, and chat model. Reconfigure an agent to edit the prompt.
-
-Existing installs that only picked models on the main entry keep their Grok conversation entities and the stored prompt.
 
 ## Voice
 

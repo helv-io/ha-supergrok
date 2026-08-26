@@ -256,7 +256,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     entry.async_on_unload(entry.add_update_listener(async_update_options))
     LOGGER.info(
         "SuperGrok OAuth %s ready title=%s chat=%s voice=%s realtime=%s imagine=%s "
-        "(enable debug logging for custom_components.grok_oauth to see request traces)",
+        "(enable debug logging for custom_components.supergrok to see request traces)",
         async_get_loaded_integration(hass, DOMAIN).version,
         entry.title,
         chat_models(selected),

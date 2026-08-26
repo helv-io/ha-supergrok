@@ -1,12 +1,14 @@
-# Pre-release checklist for 0.5.0
+# Pre-release checklist for 0.6.0
 
 Use a throwaway Home Assistant 2026.8+ instance and a real SuperGrok or X Premium+ account. Unit tests cannot prove Voice or the CLI proxy.
 
-Install this branch (`improve/0.5.0-hardening`): copy `custom_components/grok_oauth` into `/config/custom_components/grok_oauth` and restart. Do not tag until every box you can run is ticked.
+0.6.0 is a domain rename. Do not keep `custom_components/grok_oauth` next to `custom_components/supergrok`.
+
+Install this branch: copy `custom_components/supergrok` into `/config/custom_components/supergrok` and restart. If `/config/custom_components/grok_oauth` exists, delete it first. Do not tag until every box you can run is ticked.
 
 ## A. Fresh install and login
 
-- [ ] Integration appears as **SuperGrok OAuth**.
+- [ ] Integration appears as **SuperGrok OAuth** (domain `supergrok`).
 - [ ] README says unofficial / not affiliated.
 - [ ] Device code (default): verification URL + user code; approving on another device finishes without paste. Unique id is the account `sub`, not a token prefix.
 - [ ] Browser backup: authorize URL uses `http://127.0.0.1:56121/callback` (not my.home-assistant.io). Full `code=` paste works. Wrong `state` is rejected. Bare code still works.
@@ -32,8 +34,8 @@ Install this branch (`improve/0.5.0-hardening`): copy `custom_components/grok_oa
 - [ ] Multi-turn follow-up uses prior context.
 - [ ] A prompt that would hammer tools still ends with a reply (no empty Assist bubble).
 - [ ] Image attachment (doorbell snapshot) is described. Non-image attachment errors cleanly.
-- [ ] Developer tools → `grok_oauth.generate_content` with a prompt; with `image_filename`; with a bad config entry (validation error).
-- [ ] Debug log for `custom_components.grok_oauth` shows `cli-chat-proxy.grok.com` vs `api.x.ai` and does not print tokens or emails.
+- [ ] Developer tools → `supergrok.generate_content` with a prompt; with `image_filename`; with a bad config entry (validation error).
+- [ ] Debug log for `custom_components.supergrok` shows `cli-chat-proxy.grok.com` vs `api.x.ai` and does not print tokens or emails.
 
 ## D. Voice
 
@@ -47,7 +49,8 @@ Install this branch (`improve/0.5.0-hardening`): copy `custom_components/grok_oa
 
 ## E. Imagine / AI Task
 
-- [ ] `ai_task.generate_image` or `grok_oauth.generate_image` returns an image. 1k and 16:9 still work.
+- [ ] Setup does not raise `Platform supergrok.ai_task not found`. An AI Task entity is created when chat/Imagine is selected.
+- [ ] `ai_task.generate_image` or `supergrok.generate_image` returns an image. 1k and 16:9 still work.
 - [ ] `ai_task.generate_data` unstructured: plain text.
 - [ ] `ai_task.generate_data` with a structure: valid JSON, not a markdown-wrapped failure.
 - [ ] No Imagine model on the AI Task: generate_image errors with a clear message.
@@ -59,16 +62,17 @@ Install this branch (`improve/0.5.0-hardening`): copy `custom_components/grok_oa
 - [ ] Remove the integration: re-add requires a new login (refresh token revoked). HA does not get stuck if revoke 4xxs.
 - [ ] Reauth with the same account succeeds; a different account → `wrong_account`.
 
-## G. Upgrade from 0.4.0
+## G. Upgrade from 0.5.0
 
-- [ ] Install 0.4.0, add SuperGrok, create a named conversation agent, point Assist at Grok STT/TTS.
-- [ ] Upgrade to this branch, restart. Existing conversation entity ids unchanged. Prompt and Control Home Assistant still apply. Voice pipeline still selected.
+- [ ] Install 0.5.0 (`grok_oauth`), add SuperGrok, create a named conversation agent, point Assist at Grok STT/TTS.
+- [ ] Upgrade to this branch (HACS or copy `custom_components/supergrok`). Delete leftover `custom_components/grok_oauth`. Restart.
+- [ ] The old `grok_oauth` config entry is dead. Remove it, add SuperGrok OAuth (`supergrok`), sign in again, and re-select Assist entities.
 
 ## H. Must still be true
 
-- [ ] Realtime is not in the picker. `grok_oauth.create_realtime_session` is not registered.
-- [ ] Domain remains `grok_oauth`. Services remain `grok_oauth.generate_content` / `generate_image`.
+- [ ] Realtime is not in the picker. `supergrok.create_realtime_session` is not registered.
+- [ ] Domain is `supergrok`. Services are `supergrok.generate_content` / `generate_image`.
 - [ ] `pytest` green. Hassfest + HACS Action green.
 - [ ] Ruff clean on `custom_components/` and `tests/`.
 
-When this is green: merge `improve/0.5.0-hardening` to `main`, tag `0.5.0`. HACS default-store is a follow-up, not this branch.
+When this is green: merge to `main`, tag `0.6.0`. The tag creates the GitHub Release from CHANGELOG. HACS default-store is a follow-up, not this branch.

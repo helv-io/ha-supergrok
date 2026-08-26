@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.exceptions import HomeAssistantError
 
-from custom_components.grok_oauth.client import GrokClient
-from custom_components.grok_oauth.const import CLIENT_IDENTIFIER, MEDIA_API_BASES
-from custom_components.grok_oauth.oauth import OAuthTokens
+from custom_components.supergrok.client import GrokClient
+from custom_components.supergrok.const import CLIENT_IDENTIFIER, MEDIA_API_BASES
+from custom_components.supergrok.oauth import OAuthTokens
 
 TOKENS = OAuthTokens(
     access_token="access",
@@ -83,7 +83,7 @@ async def test_chat_falls_back_from_402_to_second_host() -> None:
     )
     client = _client()
     with patch(
-        "custom_components.grok_oauth.client.async_get_clientsession",
+        "custom_components.supergrok.client.async_get_clientsession",
         return_value=session,
     ):
         result = await client.chat(model="grok-4.6", messages=[{"role": "user", "content": "hi"}])
@@ -106,10 +106,10 @@ async def test_429_retries_then_succeeds() -> None:
     client = _client()
     with (
         patch(
-            "custom_components.grok_oauth.client.async_get_clientsession",
+            "custom_components.supergrok.client.async_get_clientsession",
             return_value=session,
         ),
-        patch("custom_components.grok_oauth.client.asyncio.sleep", new=AsyncMock()),
+        patch("custom_components.supergrok.client.asyncio.sleep", new=AsyncMock()),
     ):
         result = await client.chat(model="grok-4.6", messages=[{"role": "user", "content": "hi"}])
     assert result.text == "ok"
@@ -125,7 +125,7 @@ async def test_tts_raw_audio_is_one_post() -> None:
     )
     client = _client()
     with patch(
-        "custom_components.grok_oauth.client.async_get_clientsession",
+        "custom_components.supergrok.client.async_get_clientsession",
         return_value=session,
     ):
         body, content_type = await client.tts(text="hello", voice_id="eve")
@@ -140,7 +140,7 @@ async def test_stt_prefers_grok_com() -> None:
     session = FakeSession([FakeResp(200, {"text": "lights on"})])
     client = _client()
     with patch(
-        "custom_components.grok_oauth.client.async_get_clientsession",
+        "custom_components.supergrok.client.async_get_clientsession",
         return_value=session,
     ):
         text = await client.stt(
@@ -167,7 +167,7 @@ async def test_stt_falls_back_to_api_xai() -> None:
     )
     client = _client()
     with patch(
-        "custom_components.grok_oauth.client.async_get_clientsession",
+        "custom_components.supergrok.client.async_get_clientsession",
         return_value=session,
     ):
         text = await client.stt(
@@ -192,7 +192,7 @@ async def test_headers_identify_as_ha_supergrok() -> None:
     )
     client = _client()
     with patch(
-        "custom_components.grok_oauth.client.async_get_clientsession",
+        "custom_components.supergrok.client.async_get_clientsession",
         return_value=session,
     ):
         await client.chat(model="grok-4.6", messages=[{"role": "user", "content": "hi"}])
@@ -223,7 +223,7 @@ async def test_chat_stream_yields_content_then_finish() -> None:
     client = _client()
     events = []
     with patch(
-        "custom_components.grok_oauth.client.async_get_clientsession",
+        "custom_components.supergrok.client.async_get_clientsession",
         return_value=session,
     ):
         async for event in client.chat_stream(
@@ -241,7 +241,7 @@ async def test_empty_stt_raises() -> None:
     session = FakeSession([FakeResp(200, {"duration": 1.2})])
     client = _client()
     with patch(
-        "custom_components.grok_oauth.client.async_get_clientsession",
+        "custom_components.supergrok.client.async_get_clientsession",
         return_value=session,
     ):
         with pytest.raises(HomeAssistantError, match="no text"):
