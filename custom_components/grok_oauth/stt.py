@@ -42,8 +42,8 @@ async def async_setup_entry(
 class GrokSTTEntity(stt.SpeechToTextEntity):
     """Home Assistant STT entity wrapping POST /v1/stt."""
 
-    _attr_has_entity_name = True
-    _attr_name = None
+    _attr_has_entity_name = False
+    _attr_name = DEFAULT_STT_NAME
 
     def __init__(self, entry: ConfigEntry) -> None:
         self.entry = entry
