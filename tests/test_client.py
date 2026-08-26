@@ -1,4 +1,4 @@
-"""HTTP client host fallback, 429, TTS audio, STT language. No live xAI."""
+"""HTTP client host fallback, 429, TTS audio, STT hosts. No live xAI."""
 
 from __future__ import annotations
 
@@ -132,10 +132,11 @@ async def test_tts_raw_audio_is_one_post() -> None:
     assert body == audio
     assert content_type == "audio/mpeg"
     assert len(session.calls) == 1
+    assert "language" not in (session.calls[0][2].get("json") or {})
 
 
-async def test_stt_posts_language_and_prefers_grok_com() -> None:
-    """STT sends the Assist language and hits grok.com first."""
+async def test_stt_prefers_grok_com() -> None:
+    """STT hits grok.com first and does not send a language field."""
     session = FakeSession([FakeResp(200, {"text": "lights on"})])
     client = _client()
     with patch(
@@ -146,7 +147,6 @@ async def test_stt_posts_language_and_prefers_grok_com() -> None:
             audio=b"RIFF....",
             filename="speech.wav",
             content_type="audio/wav",
-            language="pt-BR",
         )
     assert text == "lights on"
     method, url, kwargs = session.calls[0]
@@ -174,7 +174,6 @@ async def test_stt_falls_back_to_api_xai() -> None:
             audio=b"RIFF",
             filename="speech.wav",
             content_type="audio/wav",
-            language="en",
         )
     assert text == "ok"
     assert "cli-chat-proxy.grok.com" in session.calls[0][1]
@@ -250,5 +249,4 @@ async def test_empty_stt_raises() -> None:
                 audio=b"RIFF",
                 filename="speech.wav",
                 content_type="audio/wav",
-                language="en",
             )

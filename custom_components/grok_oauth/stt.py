@@ -19,7 +19,6 @@ from .const import (
     DOMAIN,
     LOGGER,
     STT_HA_LANGUAGES,
-    TTS_LANGUAGE_MAP,
 )
 from .models import has_voice
 
@@ -145,17 +144,12 @@ class GrokSTTEntity(stt.SpeechToTextEntity):
         # 22000 Hz is an HA enum; xAI STT wants 22050 for raw PCM.
         pcm_rate = 22050 if sample_rate == 22000 else sample_rate
 
-        language = metadata.language or "en"
-        xai_language = TTS_LANGUAGE_MAP.get(
-            language, TTS_LANGUAGE_MAP.get(language.split("-")[0], "en")
-        )
         client: GrokClient = self.entry.runtime_data
         try:
             text = await client.stt(
                 audio=container,
                 filename=filename,
                 content_type=content_type,
-                language=xai_language,
                 sample_rate=pcm_rate,
                 raw_pcm=raw_pcm,
                 channels=int(metadata.channel.value),
