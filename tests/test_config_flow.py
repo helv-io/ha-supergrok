@@ -12,11 +12,11 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.grok_oauth.config_flow import (
+from custom_components.supergrok.config_flow import (
     GrokOAuthConfigFlow,
     GrokSubentryFlowHandler,
 )
-from custom_components.grok_oauth.const import (
+from custom_components.supergrok.const import (
     CONF_CHAT_MODEL,
     CONF_SELECTED_MODELS,
     DEFAULT_AI_TASK_NAME,
@@ -27,7 +27,7 @@ from custom_components.grok_oauth.const import (
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
 )
-from custom_components.grok_oauth.oauth import GrokOAuthError, OAuthTokens
+from custom_components.supergrok.oauth import GrokOAuthError, OAuthTokens
 
 MOCK_TOKENS = OAuthTokens(
     access_token="test-access-token",
@@ -139,7 +139,7 @@ async def test_browser_exchange_cannot_connect(hass: HomeAssistant) -> None:
     """A mocked token-exchange transport failure stays on the form."""
     flow, _placeholders = await _start_browser(hass)
     with patch(
-        "custom_components.grok_oauth.config_flow.exchange_authorization_code",
+        "custom_components.supergrok.config_flow.exchange_authorization_code",
         new=AsyncMock(side_effect=GrokOAuthError("cannot_connect", "down")),
     ):
         result = await flow.async_step_browser({"callback_url": "bare-auth-code"})
@@ -151,7 +151,7 @@ async def test_browser_exchange_oauth_failed(hass: HomeAssistant) -> None:
     """A mocked token-exchange OAuth failure stays on the form."""
     flow, _placeholders = await _start_browser(hass)
     with patch(
-        "custom_components.grok_oauth.config_flow.exchange_authorization_code",
+        "custom_components.supergrok.config_flow.exchange_authorization_code",
         new=AsyncMock(side_effect=GrokOAuthError("oauth_failed", "bad code")),
     ):
         result = await flow.async_step_browser({"callback_url": "bare-auth-code"})
@@ -163,7 +163,7 @@ async def test_browser_exchange_tier_blocked(hass: HomeAssistant) -> None:
     """A mocked 403 / tier block aborts setup."""
     flow, _placeholders = await _start_browser(hass)
     with patch(
-        "custom_components.grok_oauth.config_flow.exchange_authorization_code",
+        "custom_components.supergrok.config_flow.exchange_authorization_code",
         new=AsyncMock(side_effect=GrokOAuthError("tier_blocked", "not entitled")),
     ):
         result = await flow.async_step_browser({"callback_url": "bare-auth-code"})
@@ -175,7 +175,7 @@ async def test_device_cannot_connect(hass: HomeAssistant) -> None:
     """Device-code start failure aborts without talking to xAI."""
     flow = _flow(hass)
     with patch(
-        "custom_components.grok_oauth.config_flow.request_device_authorization",
+        "custom_components.supergrok.config_flow.request_device_authorization",
         new=AsyncMock(side_effect=GrokOAuthError("cannot_connect", "down")),
     ):
         result = await flow.async_step_user({"method": "device"})
@@ -188,11 +188,11 @@ async def test_models_requires_selection(hass: HomeAssistant) -> None:
     flow, _placeholders = await _start_browser(hass)
     with (
         patch(
-            "custom_components.grok_oauth.config_flow.exchange_authorization_code",
+            "custom_components.supergrok.config_flow.exchange_authorization_code",
             new=AsyncMock(return_value=MOCK_TOKENS),
         ),
         patch(
-            "custom_components.grok_oauth.config_flow.fetch_userinfo",
+            "custom_components.supergrok.config_flow.fetch_userinfo",
             new=AsyncMock(return_value=MOCK_ACCOUNT),
         ),
     ):
@@ -220,11 +220,11 @@ async def test_browser_success_creates_entry(hass: HomeAssistant) -> None:
     flow, _placeholders = await _start_browser(hass)
     with (
         patch(
-            "custom_components.grok_oauth.config_flow.exchange_authorization_code",
+            "custom_components.supergrok.config_flow.exchange_authorization_code",
             new=AsyncMock(return_value=MOCK_TOKENS),
         ),
         patch(
-            "custom_components.grok_oauth.config_flow.fetch_userinfo",
+            "custom_components.supergrok.config_flow.fetch_userinfo",
             new=AsyncMock(return_value=MOCK_ACCOUNT),
         ),
     ):

@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Final
 
-DOMAIN: Final = "grok_oauth"
+DOMAIN: Final = "supergrok"
 LOGGER = logging.getLogger(__package__)
-# Settings → System → Logs → custom_components.grok_oauth = debug
+# Settings → System → Logs → custom_components.supergrok = debug
 
 DEFAULT_NAME: Final = "SuperGrok OAuth"
 DEFAULT_CONVERSATION_NAME: Final = "Grok Conversation"

@@ -11,15 +11,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.grok_oauth import async_migrate_entry
-from custom_components.grok_oauth.const import (
+from custom_components.supergrok import async_migrate_entry
+from custom_components.supergrok.const import (
     CONF_CHAT_MODEL,
     CONF_SELECTED_MODELS,
     DOMAIN,
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
 )
-from custom_components.grok_oauth.models import config_option, conversation_agent_specs
+from custom_components.supergrok.models import config_option, conversation_agent_specs
 
 
 def test_legacy_specs_and_entry_prompt_fallback() -> None:

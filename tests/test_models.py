@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from custom_components.grok_oauth.const import (
+from custom_components.supergrok.const import (
     DEFAULT_CHAT_MODEL,
     DEFAULT_IMAGE_MODEL,
     MODEL_REALTIME,
@@ -11,7 +11,7 @@ from custom_components.grok_oauth.const import (
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
 )
-from custom_components.grok_oauth.models import (
+from custom_components.supergrok.models import (
     DEFAULT_SELECTED_MODELS,
     build_initial_subentries,
     has_realtime,

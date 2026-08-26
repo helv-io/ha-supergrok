@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-INTEGRATION = Path(__file__).resolve().parents[1] / "custom_components" / "grok_oauth"
+INTEGRATION = Path(__file__).resolve().parents[1] / "custom_components" / "supergrok"
 STRING_FILES = (
     INTEGRATION / "strings.json",
     INTEGRATION / "translations" / "en.json",
