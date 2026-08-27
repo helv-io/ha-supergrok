@@ -62,7 +62,8 @@ def test_public_name_and_github_urls() -> None:
     assert integration.is_dir()
     assert manifest["domain"] == "supergrok"
     assert manifest["name"] == "SuperGrok OAuth"
-    assert manifest["version"] == "0.6.1"
+    assert manifest["version"] == "0.6.2"
+    assert "voluptuous-openapi==0.4.1" in manifest["requirements"]
     assert "ai_task" in manifest["dependencies"]
     assert manifest["loggers"] == ["custom_components.supergrok"]
     assert manifest["documentation"] == "https://github.com/helv-io/ha-supergrok"
