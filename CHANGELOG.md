@@ -9,6 +9,20 @@ The integration version is `custom_components/supergrok/manifest.json` → `vers
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-27
+
+**Reconfiguration required.** The Home Assistant domain is `supergrok`, not `grok_oauth`. Old config entries will not migrate. 0.6.0 GitHub releases had an empty asset list, so HACS reported "no content to download." 0.6.1 attaches `supergrok.zip` to the GitHub release.
+
+1. Update SuperGrok OAuth to 0.6.1 in HACS (or copy `custom_components/supergrok`).
+2. Remove the old SuperGrok / Grok entry under Settings → Devices & services if it is still listed (domain `grok_oauth`).
+3. Delete `/config/custom_components/grok_oauth` if that folder is still there.
+4. Restart Home Assistant.
+5. Add **SuperGrok OAuth** (domain `supergrok`) and complete SuperGrok sign-in.
+
+### Fixed
+
+- GitHub Release now includes `supergrok.zip` (integration files at the zip root). `hacs.json` sets `zip_release` and `filename` so HACS downloads that asset.
+
 ## [0.6.0] - 2026-08-26
 
 **Reconfiguration required.** After upgrading to 0.6.0 you must remove the old `grok_oauth` integration, delete `custom_components/grok_oauth` if that folder is still there, install SuperGrok as domain `supergrok`, then add the integration in Home Assistant and sign in again. Old config entries will not migrate.

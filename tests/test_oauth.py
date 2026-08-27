@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import zipfile
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -61,7 +62,7 @@ def test_public_name_and_github_urls() -> None:
     assert integration.is_dir()
     assert manifest["domain"] == "supergrok"
     assert manifest["name"] == "SuperGrok OAuth"
-    assert manifest["version"] == "0.6.0"
+    assert manifest["version"] == "0.6.1"
     assert "ai_task" in manifest["dependencies"]
     assert manifest["loggers"] == ["custom_components.supergrok"]
     assert manifest["documentation"] == "https://github.com/helv-io/ha-supergrok"
@@ -69,13 +70,27 @@ def test_public_name_and_github_urls() -> None:
     assert re.match(r"^\d+\.\d+\.\d+$", manifest["version"])
     assert hacs["name"] == "SuperGrok OAuth"
     assert hacs.get("content_in_root") is not True
-    assert "filename" not in hacs
+    assert hacs.get("zip_release") is True
+    assert hacs["filename"] == "supergrok.zip"
     assert "ha-grok-oauth" not in readme
     assert "repository=ha-supergrok" in readme
     assert "domain=supergrok" in readme
     assert "<h1 align=\"center\">SuperGrok OAuth</h1>" in readme
     assert "integration: grok_oauth" not in services
     assert "integration: supergrok" in services
+
+
+def test_hacs_release_zip_has_manifest_at_root(tmp_path: Path) -> None:
+    """HACS zip_release extracts into custom_components/supergrok; files stay at zip root."""
+    integration = ROOT / "custom_components" / "supergrok"
+    dest = tmp_path / "supergrok.zip"
+    with zipfile.ZipFile(dest, "w") as archive:
+        for path in integration.rglob("*"):
+            if path.is_file() and "__pycache__" not in path.parts:
+                archive.write(path, path.relative_to(integration).as_posix())
+    names = zipfile.ZipFile(dest).namelist()
+    assert "manifest.json" in names
+    assert not any(name.startswith("custom_components/") for name in names)
 
 
 def test_platforms_have_modules() -> None:
