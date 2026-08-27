@@ -1,8 +1,8 @@
-# Pre-release checklist for 0.6.0
+# Pre-release checklist for 0.6.1
 
 Use a throwaway Home Assistant 2026.8+ instance and a real SuperGrok or X Premium+ account. Unit tests cannot prove Voice or the CLI proxy.
 
-0.6.0 is a domain rename. Do not keep `custom_components/grok_oauth` next to `custom_components/supergrok`.
+0.6.x is a domain rename. Do not keep `custom_components/grok_oauth` next to `custom_components/supergrok`. HACS 0.6.1 must download `supergrok.zip` from the GitHub release.
 
 Install this branch: copy `custom_components/supergrok` into `/config/custom_components/supergrok` and restart. If `/config/custom_components/grok_oauth` exists, delete it first. Do not tag until every box you can run is ticked.
 
@@ -72,7 +72,8 @@ Install this branch: copy `custom_components/supergrok` into `/config/custom_com
 
 - [ ] Realtime is not in the picker. `supergrok.create_realtime_session` is not registered.
 - [ ] Domain is `supergrok`. Services are `supergrok.generate_content` / `generate_image`.
+- [ ] HACS download of 0.6.1 succeeds and writes `/config/custom_components/supergrok` (not "no content to download").
 - [ ] `pytest` green. Hassfest + HACS Action green.
 - [ ] Ruff clean on `custom_components/` and `tests/`.
 
-When this is green: merge to `main`, tag `0.6.0`. The tag creates the GitHub Release from CHANGELOG. HACS default-store is a follow-up, not this branch.
+When this is green: merge to `main`, tag `0.6.1`. The tag creates the GitHub Release from CHANGELOG and attaches `supergrok.zip`. HACS default-store is a follow-up, not this branch.

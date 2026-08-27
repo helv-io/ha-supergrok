@@ -22,7 +22,7 @@ jobs:
         run: |
           if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release ${{ github.ref_name }} already exists; skipping create."
+            echo "Release ${{ github.ref_name }} already exists; will attach zip."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -51,6 +51,24 @@ jobs:
           Path("release_notes.md").write_text(notes + "\n", encoding="utf-8")
           PY
 
+      # HACS zip_release extracts this archive into custom_components/supergrok/.
+      # Files must sit at the zip root (manifest.json, not custom_components/...).
+      - name: Build HACS zip
+        run: |
+          (
+            cd custom_components/supergrok
+            zip -r "$GITHUB_WORKSPACE/supergrok.zip" . -x '*__pycache__*' '*.pyc'
+          )
+          python3 - <<'PY'
+          import zipfile
+          names = zipfile.ZipFile("supergrok.zip").namelist()
+          if "manifest.json" not in names:
+              raise SystemExit("manifest.json must be at the zip root")
+          if any(name.startswith("custom_components/") for name in names):
+              raise SystemExit("zip must not nest custom_components/")
+          print("\n".join(names))
+          PY
+
       - name: Create GitHub Release
         if: steps.release.outputs.exists != 'true'
         uses: softprops/action-gh-release@v3
@@ -58,6 +76,12 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
           body_path: release_notes.md
+          files: supergrok.zip
           draft: false
           prerelease: false
-        continue-on-error: true
+
+      - name: Attach HACS zip to existing release
+        if: steps.release.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" supergrok.zip --clobber
