@@ -9,6 +9,14 @@ The integration version is `custom_components/supergrok/manifest.json` → `vers
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-08-27
+
+### Fixed
+
+- Voice STT no longer posts `format=true` without `language`. xAI requires an ISO 639-1 code (for example `en`, `pt`, `de`) whenever Inverse Text Normalization is on. Home Assistant BCP-47 tags such as `pt-BR` are mapped to the short code. Languages xAI cannot format omit `format` instead of failing the request.
+
+HACS users already on domain `supergrok`: update to 0.6.3 and restart. No new reconfiguration.
+
 ## [0.6.2] - 2026-08-27
 
 ### Fixed

@@ -153,6 +153,7 @@ class GrokSTTEntity(stt.SpeechToTextEntity):
                 sample_rate=pcm_rate,
                 raw_pcm=raw_pcm,
                 channels=int(metadata.channel.value),
+                language=metadata.language,
             )
         except Exception:
             LOGGER.exception("Grok STT failed")
