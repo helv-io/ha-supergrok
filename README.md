@@ -25,9 +25,9 @@
 
 ## Upgrading from 0.5.x (reconfiguration required)
 
-0.6.x changes the Home Assistant domain from `grok_oauth` to `supergrok`. Old config entries will not migrate. Use 0.6.3 or later in HACS (0.6.0 had no release zip; 0.6.1 crashed setup without `voluptuous-openapi`).
+0.6.x changes the Home Assistant domain from `grok_oauth` to `supergrok`. Old config entries will not migrate. Use 0.6.4 or later in HACS (0.6.0 had no release zip; 0.6.1 crashed setup without `voluptuous-openapi`).
 
-1. Update **SuperGrok OAuth** to 0.6.3 in HACS (same custom repository: `helv-io/ha-supergrok`).
+1. Update **SuperGrok OAuth** to 0.6.4 in HACS (same custom repository: `helv-io/ha-supergrok`).
 2. Remove the old integration entry if it is still listed (it is domain `grok_oauth` and is dead).
 3. Delete `/config/custom_components/grok_oauth` if that folder is still there. HACS installs the new domain as `/config/custom_components/supergrok` and may leave the old folder behind.
 4. Restart Home Assistant.

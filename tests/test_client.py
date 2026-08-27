@@ -14,8 +14,10 @@ from custom_components.supergrok.const import (
     MEDIA_API_BASES,
     STT_FORMAT_LANGUAGES,
     STT_HA_LANGUAGES,
+    TTS_HA_LANGUAGES,
     TTS_LANGUAGE_MAP,
     stt_format_language,
+    tts_api_language,
 )
 from custom_components.supergrok.oauth import OAuthTokens
 
@@ -139,7 +141,69 @@ async def test_tts_raw_audio_is_one_post() -> None:
     assert body == audio
     assert content_type == "audio/mpeg"
     assert len(session.calls) == 1
-    assert "language" not in (session.calls[0][2].get("json") or {})
+    payload = session.calls[0][2].get("json") or {}
+    assert payload.get("language") == "en"
+    assert payload["language"] is not None
+
+
+def test_tts_api_language_maps_ha_tags() -> None:
+    """HA Assist tags become xAI TTS codes, never STT short codes for pt/es."""
+    assert tts_api_language("en-US") == "en"
+    assert tts_api_language("en-GB") == "en"
+    assert tts_api_language("en") == "en"
+    assert tts_api_language("en_US") == "en"
+    assert tts_api_language("pt-BR") == "pt-BR"
+    assert tts_api_language("pt-PT") == "pt-PT"
+    assert tts_api_language("es-ES") == "es-ES"
+    assert tts_api_language("es-MX") == "es-MX"
+    assert tts_api_language("zh-CN") == "zh"
+    assert tts_api_language("fr-FR") == "fr"
+    assert tts_api_language("de-DE") == "de"
+    assert tts_api_language(None) == "en"
+    assert tts_api_language("") == "en"
+    assert tts_api_language("unknown") == "en"
+    assert tts_api_language("auto") == "auto"
+    assert tts_api_language("PT-br") == "pt-BR"
+    assert tts_api_language("pt-BR") != stt_format_language("pt-BR")
+    assert tts_api_language("es-ES") != stt_format_language("es-ES")
+    for tag in TTS_HA_LANGUAGES:
+        mapped = tts_api_language(tag)
+        assert mapped is not None
+        assert mapped == TTS_LANGUAGE_MAP[tag]
+
+
+@pytest.mark.parametrize(
+    ("ha_language", "api_language"),
+    [
+        (None, "en"),
+        ("en-US", "en"),
+        ("pt-BR", "pt-BR"),
+        ("zh-CN", "zh"),
+        ("es-ES", "es-ES"),
+        ("es-MX", "es-MX"),
+        ("fr-FR", "fr"),
+    ],
+)
+async def test_tts_json_always_includes_language(
+    ha_language: str | None, api_language: str
+) -> None:
+    """POST /v1/tts always sets language; omitting it 422s on xAI."""
+    audio = b"ID3fake-mp3"
+    session = FakeSession(
+        [FakeResp(200, audio, headers={"Content-Type": "audio/mpeg"})]
+    )
+    client = _client()
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=session,
+    ):
+        await client.tts(text="hello", voice_id="eve", language=ha_language)
+    payload = session.calls[0][2].get("json") or {}
+    assert "language" in payload
+    assert payload["language"] == api_language
+    assert payload["language"] is not None
+    assert "lang" not in payload
+    assert "locale" not in payload
 
 
 def _form_text_fields(form) -> dict[str, str]:
@@ -163,15 +227,30 @@ def _form_text_fields(form) -> dict[str, str]:
     return fields
 
 
-def _assert_stt_format_language(form, expected_language: str | None) -> None:
-    """format=true is only legal together with an xAI short language code."""
+def _form_field_names(form) -> list[str]:
+    """Field names in multipart order, including the file field."""
+    names: list[str] = []
+    for item in getattr(form, "_fields", ()):
+        if not (isinstance(item, tuple) and item):
+            continue
+        first = item[0]
+        if isinstance(first, str):
+            names.append(first)
+        elif hasattr(first, "get") and first.get("name"):
+            names.append(str(first.get("name")))
+    return names
+
+
+def _assert_stt_format_language(form, expected_language: str) -> None:
+    """language and format=true are always paired; file stays last."""
     fields = _form_text_fields(form)
-    if fields.get("format") == "true":
-        assert fields.get("language") == expected_language
-        assert expected_language in STT_FORMAT_LANGUAGES
-        assert "-" not in expected_language
-    else:
-        assert "language" not in fields
+    names = _form_field_names(form)
+    assert fields.get("format") == "true"
+    assert fields.get("language") == expected_language
+    assert expected_language in STT_FORMAT_LANGUAGES
+    assert "-" not in expected_language
+    assert expected_language != "en-US"
+    assert names[-1] == "file"
 
 
 def test_stt_format_language_maps_bcp47_to_short_code() -> None:
@@ -186,6 +265,7 @@ def test_stt_format_language_maps_bcp47_to_short_code() -> None:
     assert stt_format_language("ja-JP") == "ja"
     assert stt_format_language("fil") == "fil"
     assert stt_format_language("fil-PH") == "fil"
+    assert stt_format_language("en_US") == "en"
     assert stt_format_language("pt-BR") != TTS_LANGUAGE_MAP["pt-BR"]
     assert stt_format_language("es-ES") != TTS_LANGUAGE_MAP["es-ES"]
     assert stt_format_language("zh-CN") is None
@@ -193,6 +273,8 @@ def test_stt_format_language_maps_bcp47_to_short_code() -> None:
     assert stt_format_language(None) is None
     assert stt_format_language("") is None
     assert stt_format_language("  ") is None
+    assert (stt_format_language("zh-CN") or "en") == "en"
+    assert (stt_format_language(None) or "en") == "en"
     for tag in STT_HA_LANGUAGES:
         mapped = stt_format_language(tag)
         if mapped is not None:
@@ -285,8 +367,8 @@ async def test_stt_maps_bcp47_on_pcm_and_container() -> None:
         _assert_stt_format_language(kwargs.get("data"), "pt")
 
 
-async def test_stt_omits_format_when_language_unsupported() -> None:
-    """Languages xAI cannot format must not post format=true (that 400s)."""
+async def test_stt_defaults_unsupported_language_to_en_with_format() -> None:
+    """zh is not an STT format lang; default en + format=true for this house."""
     session = FakeSession([FakeResp(200, {"text": "ok"})])
     client = _client()
     with patch(
@@ -300,13 +382,11 @@ async def test_stt_omits_format_when_language_unsupported() -> None:
             language="zh-CN",
         )
     assert text == "ok"
-    fields = _form_text_fields(session.calls[0][2].get("data"))
-    assert fields.get("format") != "true"
-    assert "language" not in fields
+    _assert_stt_format_language(session.calls[0][2].get("data"), "en")
 
 
-async def test_stt_omits_format_when_language_missing() -> None:
-    """No HA language means no format=true, so the request cannot 400."""
+async def test_stt_defaults_missing_language_to_en_with_format() -> None:
+    """No HA language still sends language=en and format=true together."""
     session = FakeSession([FakeResp(200, {"text": "ok"})])
     client = _client()
     with patch(
@@ -319,7 +399,67 @@ async def test_stt_omits_format_when_language_missing() -> None:
             content_type="audio/wav",
         )
     assert text == "ok"
-    _assert_stt_format_language(session.calls[0][2].get("data"), None)
+    _assert_stt_format_language(session.calls[0][2].get("data"), "en")
+
+
+async def test_stt_never_sends_en_us_with_format() -> None:
+    """en-US / en_US must become en before format=true."""
+    session = FakeSession(
+        [
+            FakeResp(200, {"text": "ok"}),
+            FakeResp(200, {"text": "ok"}),
+        ]
+    )
+    client = _client()
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=session,
+    ):
+        await client.stt(
+            audio=b"RIFF",
+            filename="speech.wav",
+            content_type="audio/wav",
+            language="en-US",
+        )
+        await client.stt(
+            audio=b"RIFF",
+            filename="speech.wav",
+            content_type="audio/wav",
+            language="en_US",
+        )
+    for _method, _url, kwargs in session.calls:
+        fields = _form_text_fields(kwargs.get("data"))
+        assert fields.get("language") == "en"
+        assert fields.get("format") == "true"
+        assert fields.get("language") != "en-US"
+
+
+async def test_stt_stops_after_pcm_and_wav_400() -> None:
+    """Both containers 400ing must not retry the same bad payload."""
+    session = FakeSession(
+        [
+            FakeResp(400, {"error": "bad request"}),
+            FakeResp(400, {"error": "bad request"}),
+            FakeResp(200, {"text": "should not run"}),
+        ]
+    )
+    client = _client()
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=session,
+    ):
+        with pytest.raises(HomeAssistantError, match="400"):
+            await client.stt(
+                audio=b"RIFF....",
+                filename="speech.wav",
+                content_type="audio/wav",
+                sample_rate=16000,
+                raw_pcm=b"\x00\x00",
+                language="en-US",
+            )
+    assert len(session.calls) == 2
+    for _method, _url, kwargs in session.calls:
+        _assert_stt_format_language(kwargs.get("data"), "en")
 
 
 async def test_headers_identify_as_ha_supergrok() -> None:

@@ -126,8 +126,11 @@ TTS_CODECS: Final = ("mp3", "wav", "pcm")
 TTS_SAMPLE_RATES: Final = (8000, 16000, 22050, 24000, 44100, 48000)
 
 # xAI TTS language codes from the Voice REST reference, expanded to the
-# BCP-47 tags Home Assistant Voice Assistants expect.
+# BCP-47 tags Home Assistant Voice Assistants expect. POST /v1/tts requires
+# language (BCP-47 or auto). Do not reuse STT short codes here: pt-BR is
+# valid TTS and invalid for STT format=true.
 TTS_LANGUAGE_MAP: Final = {
+    "auto": "auto",
     "en": "en",
     "en-US": "en",
     "en-GB": "en",
@@ -242,12 +245,34 @@ STT_FORMAT_LANGUAGES: Final = frozenset(
 )
 
 
+def tts_api_language(ha_language: str | None) -> str:
+    """Map a Home Assistant language tag to a required xAI TTS language.
+
+    Never returns None. POST /v1/tts 422s without this field. Unknown or
+    missing tags fall back to en. This is not stt_format_language: pt-BR
+    is valid here and invalid for STT format=true.
+    """
+    if not ha_language or not isinstance(ha_language, str):
+        return "en"
+    tag = ha_language.strip().replace("_", "-")
+    if not tag:
+        return "en"
+    lookup = {key.lower(): value for key, value in TTS_LANGUAGE_MAP.items()}
+    if mapped := lookup.get(tag.lower()):
+        return mapped
+    primary = tag.split("-", 1)[0].lower()
+    if mapped := lookup.get(primary):
+        return mapped
+    return "en"
+
+
 def stt_format_language(ha_language: str | None) -> str | None:
     """Map a Home Assistant BCP-47 tag to an xAI STT format language.
 
     format=true requires an ISO 639-1 code from STT_FORMAT_LANGUAGES (plus
     fil). Tags such as pt-BR become pt. Returns None when the primary
-    subtag is missing or not in that list so the client can omit format.
+    subtag is missing or not in that list. The client then defaults to en
+    so language and format=true are always sent together.
     """
     if not ha_language or not isinstance(ha_language, str):
         return None

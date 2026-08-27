@@ -83,7 +83,7 @@ class GrokTTSEntity(TextToSpeechEntity):
 
     @callback
     def async_get_supported_voices(self, language: str) -> list[Voice]:
-        """Return Grok voices (language is auto-detected by xAI)."""
+        """Return Grok voices. language is forwarded on POST /v1/tts."""
         return self._voices
 
     @property
@@ -112,6 +112,7 @@ class GrokTTSEntity(TextToSpeechEntity):
                 text=message,
                 voice_id=options.get(ATTR_VOICE, DEFAULT_TTS_VOICE),
                 codec=codec,
+                language=language,
             )
         except Exception as err:
             LOGGER.exception("Grok TTS failed")

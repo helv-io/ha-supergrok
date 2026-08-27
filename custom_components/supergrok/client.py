@@ -31,6 +31,7 @@ from .const import (
     REALTIME_WS_URLS,
     RETRY_STATUS,
     stt_format_language,
+    tts_api_language,
 )
 from .logutil import elapsed_ms, preview, summarize_tools
 from .oauth import GrokOAuthError, OAuthTokens, refresh_tokens
@@ -682,11 +683,14 @@ class GrokClient:
         codec: str = "mp3",
         sample_rate: int = 24000,
         speed: float = 1.0,
+        language: str | None = None,
     ) -> tuple[bytes, str]:
-        """Synthesize speech via POST /v1/tts. Language is auto-detected by xAI."""
+        """Synthesize speech via POST /v1/tts. language is required by xAI."""
+        api_language = tts_api_language(language) or "en"
         body: dict[str, Any] = {
             "text": text,
             "voice_id": voice_id,
+            "language": api_language,
             "speed": speed,
             "output_format": {
                 "codec": codec,
@@ -694,7 +698,14 @@ class GrokClient:
             },
         }
         started = time.monotonic()
-        LOGGER.debug("TTS start voice=%s codec=%s chars=%s", voice_id, codec, len(text))
+        LOGGER.debug(
+            "TTS start voice=%s codec=%s chars=%s ha_lang=%s api_lang=%s",
+            voice_id,
+            codec,
+            len(text),
+            language,
+            api_language,
+        )
         payload = await self._request(
             "POST",
             MEDIA_API_BASES,
@@ -743,10 +754,10 @@ class GrokClient:
         Assist hands us a complete buffer, so the realtime WebSocket is the
         wrong API (sending buffered PCM faster than wall-clock triggers
         xAI's 'past start timer' 400). format=true enables Inverse Text
-        Normalization and requires an xAI short language code.
+        Normalization and must always travel with a short language code.
         """
         started = time.monotonic()
-        format_lang = stt_format_language(language)
+        format_lang = stt_format_language(language) or "en"
         LOGGER.debug(
             "STT start rate=%s ch=%s container=%sB pcm=%sB file=%s ha_lang=%s format_lang=%s",
             sample_rate,
@@ -764,9 +775,8 @@ class GrokClient:
             form.add_field("audio_format", "pcm")
             form.add_field("sample_rate", str(sample_rate))
             form.add_field("vad_threshold", "0")
-            if format_lang:
-                form.add_field("language", format_lang)
-                form.add_field("format", "true")
+            form.add_field("language", format_lang)
+            form.add_field("format", "true")
             if channels > 1:
                 form.add_field("channels", str(channels))
             form.add_field(
@@ -776,13 +786,14 @@ class GrokClient:
 
         form = aiohttp.FormData()
         form.add_field("vad_threshold", "0")
-        if format_lang:
-            form.add_field("language", format_lang)
-            form.add_field("format", "true")
+        form.add_field("language", format_lang)
+        form.add_field("format", "true")
         form.add_field("file", audio, filename=filename, content_type=content_type)
         attempts.append((f"wav {len(audio)}B", form))
 
         last_preview = ""
+        last_error: HomeAssistantError | None = None
+        bad_request = True
         for label, form in attempts:
             try:
                 payload = await self._request(
@@ -794,9 +805,13 @@ class GrokClient:
                     timeout=120,
                 )
             except HomeAssistantError as err:
+                last_error = err
                 last_preview = str(err)
                 LOGGER.warning("STT %s failed: %s", label, err)
+                if "(400)" not in str(err):
+                    bad_request = False
                 continue
+            bad_request = False
             if text := _extract_transcript(payload):
                 LOGGER.debug(
                     "STT %s ok chars=%s duration=%s in %sms: %s",
@@ -819,6 +834,8 @@ class GrokClient:
             )
             last_preview = f"empty transcript, duration={duration}s"
         self._note(f"stt fail {last_preview}")
+        if bad_request and last_error is not None:
+            raise last_error
         raise HomeAssistantError(
             f"Grok STT heard audio but returned no text ({last_preview})"
         )
