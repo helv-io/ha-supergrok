@@ -9,6 +9,14 @@ The integration version is `custom_components/supergrok/manifest.json` → `vers
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-08-27
+
+### Fixed
+
+- Setup no longer fails with `ModuleNotFoundError: No module named 'voluptuous_openapi'`. The integration declares `voluptuous-openapi==0.4.1` (Home Assistant 2026.8 pin) in `manifest.json` so Home Assistant installs it.
+
+HACS users already on domain `supergrok`: update to 0.6.2 and restart.
+
 ## [0.6.1] - 2026-08-27
 
 **Reconfiguration required.** The Home Assistant domain is `supergrok`, not `grok_oauth`. Old config entries will not migrate. 0.6.0 GitHub releases had an empty asset list, so HACS reported "no content to download." 0.6.1 attaches `supergrok.zip` to the GitHub release.
