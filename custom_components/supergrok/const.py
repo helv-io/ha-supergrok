@@ -208,3 +208,56 @@ FALLBACK_TTS_VOICES: Final = (
 )
 
 STT_HA_LANGUAGES: Final = TTS_HA_LANGUAGES
+
+# xAI STT Inverse Text Normalization (format=true) accepts only these short
+# codes. Do not send Home Assistant / TTS tags such as pt-BR or es-ES.
+STT_FORMAT_LANGUAGES: Final = frozenset(
+    {
+        "ar",
+        "cs",
+        "da",
+        "nl",
+        "en",
+        "fil",
+        "fr",
+        "de",
+        "hi",
+        "id",
+        "it",
+        "ja",
+        "ko",
+        "mk",
+        "ms",
+        "fa",
+        "pl",
+        "pt",
+        "ro",
+        "ru",
+        "es",
+        "sv",
+        "th",
+        "tr",
+        "vi",
+    }
+)
+
+
+def stt_format_language(ha_language: str | None) -> str | None:
+    """Map a Home Assistant BCP-47 tag to an xAI STT format language.
+
+    format=true requires an ISO 639-1 code from STT_FORMAT_LANGUAGES (plus
+    fil). Tags such as pt-BR become pt. Returns None when the primary
+    subtag is missing or not in that list so the client can omit format.
+    """
+    if not ha_language or not isinstance(ha_language, str):
+        return None
+    tag = ha_language.strip().lower().replace("_", "-")
+    if not tag:
+        return None
+    if tag == "fil" or tag.startswith("fil-"):
+        primary = "fil"
+    else:
+        primary = tag.split("-", 1)[0]
+    if primary in STT_FORMAT_LANGUAGES:
+        return primary
+    return None

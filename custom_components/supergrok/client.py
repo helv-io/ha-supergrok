@@ -30,6 +30,7 @@ from .const import (
     MEDIA_API_BASES,
     REALTIME_WS_URLS,
     RETRY_STATUS,
+    stt_format_language,
 )
 from .logutil import elapsed_ms, preview, summarize_tools
 from .oauth import GrokOAuthError, OAuthTokens, refresh_tokens
@@ -735,21 +736,26 @@ class GrokClient:
         sample_rate: int | None = None,
         raw_pcm: bytes | None = None,
         channels: int = 1,
+        language: str | None = None,
     ) -> str:
         """Transcribe a finished Assist clip via POST /v1/stt.
 
         Assist hands us a complete buffer, so the realtime WebSocket is the
         wrong API (sending buffered PCM faster than wall-clock triggers
-        xAI's 'past start timer' 400). Language is auto-detected by xAI.
+        xAI's 'past start timer' 400). format=true enables Inverse Text
+        Normalization and requires an xAI short language code.
         """
         started = time.monotonic()
+        format_lang = stt_format_language(language)
         LOGGER.debug(
-            "STT start rate=%s ch=%s container=%sB pcm=%sB file=%s",
+            "STT start rate=%s ch=%s container=%sB pcm=%sB file=%s ha_lang=%s format_lang=%s",
             sample_rate,
             channels,
             len(audio),
             len(raw_pcm) if raw_pcm else 0,
             filename,
+            language,
+            format_lang,
         )
         attempts: list[tuple[str, aiohttp.FormData]] = []
 
@@ -758,7 +764,9 @@ class GrokClient:
             form.add_field("audio_format", "pcm")
             form.add_field("sample_rate", str(sample_rate))
             form.add_field("vad_threshold", "0")
-            form.add_field("format", "true")
+            if format_lang:
+                form.add_field("language", format_lang)
+                form.add_field("format", "true")
             if channels > 1:
                 form.add_field("channels", str(channels))
             form.add_field(
@@ -768,7 +776,9 @@ class GrokClient:
 
         form = aiohttp.FormData()
         form.add_field("vad_threshold", "0")
-        form.add_field("format", "true")
+        if format_lang:
+            form.add_field("language", format_lang)
+            form.add_field("format", "true")
         form.add_field("file", audio, filename=filename, content_type=content_type)
         attempts.append((f"wav {len(audio)}B", form))
 
