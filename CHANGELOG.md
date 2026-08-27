@@ -9,6 +9,15 @@ The integration version is `custom_components/supergrok/manifest.json` → `vers
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-08-27
+
+### Fixed
+
+- Voice TTS now sends `language` on POST `/v1/tts`. xAI requires the field (422 without it), which left Voice PE / Nabu satellites silent after Assist understood the speech. Home Assistant tags map through `tts_api_language()` (`en-US` -> `en`, `pt-BR` stays `pt-BR`, `zh-CN` -> `zh`). Missing or unknown tags fall back to `en`. The field is never omitted and is never `None`.
+- Voice STT always posts `language` together with `format=true`. Unsupported or missing Assist tags use `en` so Inverse Text Normalization stays on without 400ing on `format requires language`. PCM and WAV 400s are not retried as the same bad payload.
+
+HACS users already on domain `supergrok`: update to 0.6.4 and restart. No new reconfiguration.
+
 ## [0.6.3] - 2026-08-27
 
 ### Fixed
