@@ -5,4 +5,4 @@ hassil>=3.11.0
 ha-ffmpeg>=3.2.2
 mutagen>=1.47.0
 pytest-homeassistant-custom-component>=0.13.357
-ruff>=0.9.0
+ruff>=0.16.4
