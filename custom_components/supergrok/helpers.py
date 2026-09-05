@@ -16,8 +16,8 @@ from .client import ChatResult, GrokClient
 from .const import LOGGER, MAX_TOOL_ITERATIONS, REALTIME_ENABLED
 from .logutil import summarize_tools
 from .toolschema import (
+    _tool_input_from_call,
     convert_tool_parameters,
-    prepare_tool_call,
     sanitize_tool_schema,
 )
 
@@ -151,26 +151,9 @@ def _tool_sources_by_name(llm_api: llm.APIInstance | None) -> dict[str, Any]:
     return sources
 
 
-def _tool_input_from_call(
-    call: dict[str, Any],
-    schemas: dict[str, dict[str, Any]],
-    sources: dict[str, Any] | None = None,
-) -> tuple[llm.ToolInput, list[str]]:
-    """Build a ToolInput and list required properties that are still missing.
-
-    Coerce runs here on every call, including ones later marked external. HA
-    only dispatches ``external=False`` tools to ``async_call_tool`` / MCP.
-    """
-    args, missing = prepare_tool_call(call, schemas, sources)
-    return (
-        llm.ToolInput(
-            id=call["id"],
-            tool_name=call["name"],
-            tool_args=args,
-            external=bool(missing),
-        ),
-        missing,
-    )
+# HA ChatLog.async_call_tool runs only when ToolInput.external is False.
+# MCP tools (Baby Buddy) are HA LLM tools, so complete calls must be
+# external=False. Do not set external=True to mark MCP/external servers.
 
 
 def _rejected_tool_result(missing: list[str]) -> dict[str, Any]:

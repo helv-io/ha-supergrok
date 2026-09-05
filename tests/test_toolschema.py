@@ -7,6 +7,7 @@ import json
 import voluptuous as vol
 
 from custom_components.supergrok.toolschema import (
+    _tool_input_from_call,
     _type_from_voluptuous_value,
     accumulate_stream_tool_delta,
     coerce_arguments_to_schema,
@@ -459,3 +460,65 @@ def test_prepare_tool_call_coerces_when_advertised_type_is_string() -> None:
     assert missing == []
     assert type(args["child_id"]) is int
     assert args["child_id"] == 1
+
+
+def test_tool_input_from_call_coerces_when_convert_emits_string() -> None:
+    """Convert advertised string for Required int; ToolInput.tool_args is int 1.
+
+    HA only dispatches Baby Buddy MCP when external is False.
+    """
+    tool_name = "babybuddy__babybuddy-diapers_create_diaper_change"
+    parameters = vol.Schema(
+        {
+            vol.Required("child_id"): int,
+            vol.Required("time"): str,
+            vol.Required("wet"): bool,
+            vol.Required("solid"): bool,
+        }
+    )
+    advertised = {
+        "type": "object",
+        "properties": {
+            "child_id": {"type": "string"},
+            "time": {"type": "string"},
+            "wet": {"type": "boolean"},
+            "solid": {"type": "boolean"},
+        },
+        "required": ["child_id", "time", "wet", "solid"],
+    }
+    tool_input, missing = _tool_input_from_call(
+        {
+            "id": "call_1",
+            "name": tool_name,
+            "arguments": {
+                "child_id": "1",
+                "time": "2026-09-05T15:00:00",
+                "wet": True,
+                "solid": False,
+            },
+        },
+        {tool_name: advertised},
+        {tool_name: parameters},
+    )
+    assert missing == []
+    assert tool_input.external is False
+    assert tool_input.tool_args["child_id"] == 1
+    assert type(tool_input.tool_args["child_id"]) is int
+
+
+def test_tool_input_incomplete_call_is_external_so_ha_skips_mcp() -> None:
+    """Missing required args use external=True as the reject path, not MCP."""
+    tool_name = "babybuddy__babybuddy-diapers_create_diaper_change"
+    parameters = vol.Schema({vol.Required("child_id"): int})
+    advertised = {
+        "type": "object",
+        "properties": {"child_id": {"type": "integer"}},
+        "required": ["child_id"],
+    }
+    tool_input, missing = _tool_input_from_call(
+        {"id": "call_1", "name": tool_name, "arguments": {}},
+        {tool_name: advertised},
+        {tool_name: parameters},
+    )
+    assert missing == ["child_id"]
+    assert tool_input.external is True

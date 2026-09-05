@@ -167,6 +167,32 @@ def prepare_tool_call(
     return args, missing_required_properties(schema, args)
 
 
+def _tool_input_from_call(
+    call: Mapping[str, Any],
+    schemas: Mapping[str, Mapping[str, Any]] | None,
+    sources: Mapping[str, Any] | None = None,
+) -> tuple[Any, list[str]]:
+    """Build an ``llm.ToolInput`` with coerced ``tool_args``.
+
+    HA ``ChatLog`` calls ``async_call_tool`` only when ``external`` is False.
+    Baby Buddy MCP is an HA LLM tool, so complete calls must stay
+    ``external=False``. Incomplete calls set ``external=True`` so HA skips
+    dispatch; SuperGrok writes the reject tool result itself.
+    """
+    from homeassistant.helpers import llm
+
+    args, missing = prepare_tool_call(call, schemas, sources)
+    return (
+        llm.ToolInput(
+            id=str(call.get("id") or "call_0"),
+            tool_name=str(call.get("name") or "unknown"),
+            tool_args=args,
+            external=bool(missing),
+        ),
+        missing,
+    )
+
+
 def coerce_arguments_to_schema(
     schema: Mapping[str, Any] | None,
     arguments: Mapping[str, Any] | None,
