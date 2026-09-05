@@ -148,24 +148,50 @@ def missing_required_properties(
     return [name for name in required_properties(schema) if name not in args]
 
 
+def prepare_tool_call(
+    call: Mapping[str, Any],
+    schemas: Mapping[str, Mapping[str, Any]] | None,
+    sources: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], list[str]]:
+    """Coerce one tool-call payload and list required properties still missing.
+
+    This is the MCP dispatch helper: helpers wrap the coerced dict in
+    ``llm.ToolInput.tool_args`` as a Python int/bool/float, not a JSON string.
+    """
+    name = call.get("name")
+    key = str(name) if name is not None else ""
+    schema = (schemas or {}).get(key)
+    source = (sources or {}).get(key)
+    args = call.get("arguments") if isinstance(call.get("arguments"), Mapping) else {}
+    args = coerce_arguments_to_schema(schema, args, source=source)
+    return args, missing_required_properties(schema, args)
+
+
 def coerce_arguments_to_schema(
-    schema: Mapping[str, Any] | None, arguments: Mapping[str, Any] | None
+    schema: Mapping[str, Any] | None,
+    arguments: Mapping[str, Any] | None,
+    source: Any = None,
 ) -> dict[str, Any]:
     """Coerce obvious string encodings to advertised JSON Schema types.
 
-    Does not invent keys or values. Only rewrites a present argument when it is
-    a string encoding of the declared type (digits to integer, true/false to
-    boolean, numeric strings to number).
+    Does not invent keys or values. Uses the advertised schema and, when
+    provided, the original voluptuous/Probatio tool parameters. Digit-only
+    strings on id-like keys (id, child_id, *_id) become int when either view
+    marks the field integer.
     """
     args = dict(arguments) if isinstance(arguments, Mapping) else {}
-    if not isinstance(schema, Mapping):
-        return args
-    properties = schema.get("properties")
+    properties = schema.get("properties") if isinstance(schema, Mapping) else None
     if not isinstance(properties, Mapping):
+        properties = {}
+    source_types = _source_json_types(source)
+    if not properties and not source_types:
         return args
     for name, value in list(args.items()):
-        if name in properties:
-            args[name] = _coerce_value(value, properties[name])
+        prop = properties.get(name)
+        source_type = source_types.get(name)
+        effective = _effective_property_schema(name, prop, source_type)
+        if effective is not None:
+            args[name] = _coerce_value(value, effective)
     return args
 
 
@@ -284,8 +310,14 @@ def _convert_voluptuous(
     parameters: Any,
     custom_serializer: Callable[[Any], Any] | None,
 ) -> dict[str, Any] | None:
-    """Prefer Home Assistant's Probatio codec, then voluptuous-openapi."""
+    """Prefer Probatio JSON Schema (keeps JsonInteger), then OpenAPI, then convert."""
     converters: list[Callable[..., Any]] = []
+    try:
+        from probatio import to_json_schema
+
+        converters.append(to_json_schema)
+    except ImportError:
+        pass
     try:
         from probatio import to_openapi
 
@@ -532,9 +564,59 @@ def _type_name_for(candidate: Any) -> str | None:
     return _TYPE_NAMES.get(candidate)
 
 
+def _json_number_type_name(value: Any) -> str | None:
+    """Map Probatio JsonInteger/JsonNumber (HA MCP from_openapi) to a JSON type."""
+    integer_flag = getattr(value, "integer", None)
+    if not isinstance(integer_flag, bool):
+        return None
+    cls_name = type(value).__name__
+    if cls_name == "_JsonNumberType" or repr(value) in {"JsonInteger()", "JsonNumber()"}:
+        return "integer" if integer_flag else "number"
+    return None
+
+
+def _is_id_like_key(name: str) -> bool:
+    """True for id / child_id / other *_id argument names."""
+    return name == "id" or name.endswith("_id")
+
+
+def _source_json_types(source: Any) -> dict[str, str]:
+    """JSON Schema types inferred from the original voluptuous/Probatio schema."""
+    if source is None:
+        return {}
+    fallback = schema_from_voluptuous(source)
+    types: dict[str, str] = {}
+    for name, prop in (fallback.get("properties") or {}).items():
+        if not isinstance(name, str):
+            continue
+        declared = _declared_json_type(prop)
+        if declared:
+            types[name] = declared
+    return types
+
+
+def _effective_property_schema(
+    name: str, prop: Any, source_type: str | None
+) -> dict[str, Any] | None:
+    """Merge advertised property schema with the voluptuous/Probatio source type."""
+    declared = _declared_json_type(prop) if isinstance(prop, dict) else None
+    chosen = _prefer_json_type([declared, source_type])
+    if _is_id_like_key(name) and "integer" in {declared, source_type}:
+        chosen = "integer"
+    if chosen is None:
+        return prop if isinstance(prop, dict) else None
+    if isinstance(prop, dict):
+        if declared == chosen:
+            return prop
+        merged = dict(prop)
+        merged["type"] = chosen
+        return merged
+    return {"type": chosen}
+
+
 def _type_from_voluptuous_value(value: Any) -> dict[str, Any]:
     """Infer a JSON Schema type from a voluptuous validator."""
-    type_name = _type_name_for(value)
+    type_name = _type_name_for(value) or _json_number_type_name(value)
     if type_name:
         return {"type": type_name}
     if isinstance(value, list):
