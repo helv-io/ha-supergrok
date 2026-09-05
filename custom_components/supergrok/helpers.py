@@ -16,6 +16,7 @@ from .client import ChatResult, GrokClient
 from .const import LOGGER, MAX_TOOL_ITERATIONS, REALTIME_ENABLED
 from .logutil import summarize_tools
 from .toolschema import (
+    coerce_arguments_to_schema,
     convert_tool_parameters,
     missing_required_properties,
     sanitize_tool_schema,
@@ -139,8 +140,10 @@ def _tool_input_from_call(
     call: dict[str, Any], schemas: dict[str, dict[str, Any]]
 ) -> tuple[llm.ToolInput, list[str]]:
     """Build a ToolInput and list required properties that are still missing."""
+    schema = schemas.get(call["name"])
     args = call["arguments"] if isinstance(call.get("arguments"), dict) else {}
-    missing = missing_required_properties(schemas.get(call["name"]), args)
+    args = coerce_arguments_to_schema(schema, args)
+    missing = missing_required_properties(schema, args)
     return (
         llm.ToolInput(
             id=call["id"],
