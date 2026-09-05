@@ -9,6 +9,14 @@ The integration version is `custom_components/supergrok/manifest.json` → `vers
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-09-05
+
+### Fixed
+
+- HA MCP `from_openapi` stores JSON Schema `integer` as Probatio `JsonInteger()`. SuperGrok's `to_openapi` convert and voluptuous fallback advertised that as `string`, so `coerce_arguments_to_schema` left Grok's `child_id: "1"` as a string and Baby Buddy rejected it. Convert now prefers `to_json_schema` (which keeps integer), the fallback recognizes `JsonInteger`/`JsonNumber`, and MCP dispatch coerces using both the advertised schema and the original voluptuous/Probatio types. Digit-only strings on `id` / `*_id` become `int` when either view marks the field integer. `ToolInput.tool_args` keeps a Python `int`.
+
+HACS users already on domain `supergrok`: update to 0.6.8 and restart. No new reconfiguration.
+
 ## [0.6.7] - 2026-09-05
 
 ### Fixed

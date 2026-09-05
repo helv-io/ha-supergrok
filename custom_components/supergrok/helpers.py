@@ -16,9 +16,8 @@ from .client import ChatResult, GrokClient
 from .const import LOGGER, MAX_TOOL_ITERATIONS, REALTIME_ENABLED
 from .logutil import summarize_tools
 from .toolschema import (
-    coerce_arguments_to_schema,
+    _tool_input_from_call,
     convert_tool_parameters,
-    missing_required_properties,
     sanitize_tool_schema,
 )
 
@@ -33,6 +32,12 @@ def format_tools(llm_api: llm.APIInstance) -> list[dict[str, Any]]:
         if parameters.get("type") not in (None, "object") and "properties" not in parameters:
             LOGGER.debug("Tool %s had root type=%s; wrapping as object", tool.name, parameters.get("type"))
             parameters = sanitize_tool_schema(parameters)
+        advertised_types = {
+            name: prop.get("type")
+            for name, prop in (parameters.get("properties") or {}).items()
+            if isinstance(name, str) and isinstance(prop, dict)
+        }
+        LOGGER.debug("Advertised tool %s types=%s", tool.name, advertised_types)
         tools.append(
             {
                 "type": "function",
@@ -136,23 +141,19 @@ def _tool_schemas_by_name(tools: list[dict[str, Any]] | None) -> dict[str, dict[
     return schemas
 
 
-def _tool_input_from_call(
-    call: dict[str, Any], schemas: dict[str, dict[str, Any]]
-) -> tuple[llm.ToolInput, list[str]]:
-    """Build a ToolInput and list required properties that are still missing."""
-    schema = schemas.get(call["name"])
-    args = call["arguments"] if isinstance(call.get("arguments"), dict) else {}
-    args = coerce_arguments_to_schema(schema, args)
-    missing = missing_required_properties(schema, args)
-    return (
-        llm.ToolInput(
-            id=call["id"],
-            tool_name=call["name"],
-            tool_args=args,
-            external=bool(missing),
-        ),
-        missing,
-    )
+def _tool_sources_by_name(llm_api: llm.APIInstance | None) -> dict[str, Any]:
+    """Map tool names to the original voluptuous/Probatio parameter schemas."""
+    if llm_api is None:
+        return {}
+    sources: dict[str, Any] = {}
+    for tool in llm_api.tools:
+        sources[str(tool.name)] = tool.parameters
+    return sources
+
+
+# HA ChatLog.async_call_tool runs only when ToolInput.external is False.
+# MCP tools (Baby Buddy) are HA LLM tools, so complete calls must be
+# external=False. Do not set external=True to mark MCP/external servers.
 
 
 def _rejected_tool_result(missing: list[str]) -> dict[str, Any]:
@@ -194,6 +195,7 @@ async def _transform_stream(
     events: AsyncIterator[dict[str, Any]],
     schemas: dict[str, dict[str, Any]],
     rejected: list[tuple[llm.ToolInput, list[str]]],
+    sources: dict[str, Any] | None = None,
 ) -> AsyncIterator[conversation.AssistantContentDeltaDict]:
     """Map Grok chat-completion stream events to HA deltas."""
     started = False
@@ -206,7 +208,7 @@ async def _transform_stream(
         if event.get("tool_calls"):
             inputs: list[llm.ToolInput] = []
             for call in event["tool_calls"]:
-                tool_input, missing = _tool_input_from_call(call, schemas)
+                tool_input, missing = _tool_input_from_call(call, schemas, sources)
                 if missing:
                     rejected.append((tool_input, missing))
                 inputs.append(tool_input)
@@ -230,6 +232,7 @@ async def async_run_chat_log(
     for iteration in range(MAX_TOOL_ITERATIONS):
         messages = chat_log_to_messages(chat_log)
         tools = format_tools(chat_log.llm_api) if chat_log.llm_api else None
+        sources = _tool_sources_by_name(chat_log.llm_api)
         force_final = last_had_tools and iteration == MAX_TOOL_ITERATIONS - 1
         if force_final:
             tools = None
@@ -270,7 +273,7 @@ async def async_run_chat_log(
                     temperature=temperature,
                     response_format=response_format,
                 )
-            await _apply_chat_result(chat_log, agent_id, result, tools)
+            await _apply_chat_result(chat_log, agent_id, result, tools, sources)
         else:
             try:
                 stream = client.chat_stream(
@@ -284,7 +287,9 @@ async def async_run_chat_log(
                 rejected: list[tuple[llm.ToolInput, list[str]]] = []
                 async for _ in chat_log.async_add_delta_content_stream(
                     agent_id,
-                    _transform_stream(stream, _tool_schemas_by_name(tools), rejected),
+                    _transform_stream(
+                        stream, _tool_schemas_by_name(tools), rejected, sources
+                    ),
                 ):
                     pass
                 _add_rejected_tool_results(chat_log, agent_id, rejected)
@@ -298,7 +303,7 @@ async def async_run_chat_log(
                     temperature=temperature,
                     response_format=response_format,
                 )
-                await _apply_chat_result(chat_log, agent_id, result, tools)
+                await _apply_chat_result(chat_log, agent_id, result, tools, sources)
 
         last_content = chat_log.content[-1] if chat_log.content else None
         last_had_tools = bool(
@@ -327,14 +332,17 @@ async def _apply_chat_result(
     agent_id: str,
     result: ChatResult,
     tools: list[dict[str, Any]] | None = None,
+    sources: dict[str, Any] | None = None,
 ) -> None:
     """Apply a non-stream ChatResult onto the chat log."""
     if result.tool_calls and chat_log.llm_api:
         schemas = _tool_schemas_by_name(tools)
+        if sources is None:
+            sources = _tool_sources_by_name(chat_log.llm_api)
         tool_inputs: list[llm.ToolInput] = []
         rejected: list[tuple[llm.ToolInput, list[str]]] = []
         for call in result.tool_calls:
-            tool_input, missing = _tool_input_from_call(call, schemas)
+            tool_input, missing = _tool_input_from_call(call, schemas, sources)
             if missing:
                 rejected.append((tool_input, missing))
             tool_inputs.append(tool_input)
