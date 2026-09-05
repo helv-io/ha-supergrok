@@ -9,6 +9,14 @@ The integration version is `custom_components/supergrok/manifest.json` → `vers
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-05
+
+### Fixed
+
+- Conversation tool calling now advertises JSON Schema `required` properties to xAI. `_sanitize_tool_schema` used to strip a root `anyOf`/`oneOf` and, when convert failed, send `{"type":"object","properties":{}}`. xAI treats tool schemas as strict, so the only legal arguments were `{}`. MCP tools such as Baby Buddy `create_diaper_change` then failed with `'child_id' is a required property` and retried the empty object. SuperGrok now flattens object unions, restores Required fields from the voluptuous schema, and parses tool arguments from both `function.arguments` and top-level Responses-shaped fields. Empty required-arg calls are rejected before MCP dispatch.
+
+HACS users already on domain `supergrok`: update to 0.6.5 and restart. No new reconfiguration.
+
 ## [0.6.4] - 2026-08-27
 
 ### Fixed
