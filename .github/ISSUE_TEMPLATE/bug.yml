@@ -18,7 +18,7 @@ body:
     id: integration_version
     attributes:
       label: SuperGrok OAuth version
-      placeholder: "0.6.5"
+      placeholder: "0.6.6"
     validations:
       required: true
   - type: dropdown

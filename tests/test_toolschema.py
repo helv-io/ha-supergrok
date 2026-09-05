@@ -7,6 +7,7 @@ import json
 import voluptuous as vol
 
 from custom_components.supergrok.toolschema import (
+    _type_from_voluptuous_value,
     accumulate_stream_tool_delta,
     convert_tool_parameters,
     missing_required_properties,
@@ -158,6 +159,61 @@ def test_accumulate_stream_reads_top_level_arguments() -> None:
     )
     assert slot["name"] == "create_diaper_change"
     assert json.loads(slot["arguments"]) == {"child_id": 1}
+
+
+def test_list_validator_does_not_raise_unhashable_type() -> None:
+    """Baby Buddy MCP uses list validators (tags, type unions). 0.6.5 hashed them."""
+    parameters = vol.Schema(
+        {
+            vol.Required("child_id"): int,
+            vol.Required("time"): str,
+            vol.Required("wet"): bool,
+            vol.Required("solid"): bool,
+            vol.Optional("color"): vol.Any(str, None),
+            vol.Optional("tags"): [str],
+        }
+    )
+    converted = convert_tool_parameters(parameters)
+    assert converted["type"] == "object"
+    assert "child_id" in converted["properties"]
+    assert converted["required"] == ["child_id", "time", "wet", "solid"]
+    assert converted["properties"]["tags"]["type"] == "array"
+    assert converted["properties"]["color"]["type"] == "string"
+    assert missing_required_properties(converted, {}) == [
+        "child_id",
+        "time",
+        "wet",
+        "solid",
+    ]
+
+
+def test_type_from_voluptuous_list_and_type_union() -> None:
+    """A list schema value must not raise TypeError: cannot use 'list' as a dict key."""
+    assert _type_from_voluptuous_value([str]) == {
+        "type": "array",
+        "items": {"type": "string"},
+    }
+    assert _type_from_voluptuous_value(["string", "null"]) == {"type": "string"}
+    assert _type_from_voluptuous_value([int, None]) == {"type": "integer"}
+
+
+def test_schema_from_voluptuous_survives_list_field_when_convert_skipped(
+    monkeypatch,
+) -> None:
+    """format_tools always builds the voluptuous fallback before convert."""
+    monkeypatch.setattr(
+        "custom_components.supergrok.toolschema._convert_voluptuous",
+        lambda *_args, **_kwargs: None,
+    )
+    parameters = vol.Schema(
+        {
+            vol.Required("child_id"): int,
+            vol.Optional("tags"): [str],
+        }
+    )
+    converted = convert_tool_parameters(parameters)
+    assert converted["required"] == ["child_id"]
+    assert converted["properties"]["tags"]["type"] == "array"
 
 
 def test_convert_failure_still_advertises_voluptuous_required(monkeypatch) -> None:

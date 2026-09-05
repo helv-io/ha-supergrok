@@ -382,21 +382,50 @@ def _flatten_property_union(prop: dict[str, Any]) -> dict[str, Any]:
     return chosen
 
 
+def _type_name_for(candidate: Any) -> str | None:
+    """Look up a known JSON Schema type without hashing lists or other unhashables."""
+    try:
+        hash(candidate)
+    except TypeError:
+        return None
+    return _TYPE_NAMES.get(candidate)
+
+
 def _type_from_voluptuous_value(value: Any) -> dict[str, Any]:
     """Infer a JSON Schema type from a voluptuous validator."""
-    if value in _TYPE_NAMES:
-        return {"type": _TYPE_NAMES[value]}
+    type_name = _type_name_for(value)
+    if type_name:
+        return {"type": type_name}
+    if isinstance(value, list):
+        if len(value) == 1:
+            return {"type": "array", "items": _type_from_voluptuous_value(value[0])}
+        if value and all(isinstance(item, str) for item in value):
+            for item in value:
+                if item not in ("null", "None"):
+                    if item in ("string", "integer", "number", "boolean", "object", "array"):
+                        return {"type": item}
+                    return {"type": "string"}
+            return {"type": "string"}
+        for item in value:
+            if item is None:
+                continue
+            inferred = _type_from_voluptuous_value(item)
+            if inferred.get("type") != "string" or item is str:
+                return inferred
+        return {"type": "string"}
     inner = getattr(value, "type", None)
-    if inner in _TYPE_NAMES:
-        return {"type": _TYPE_NAMES[inner]}
+    type_name = _type_name_for(inner)
+    if type_name:
+        return {"type": type_name}
     validators = getattr(value, "validators", None)
     if isinstance(validators, (list, tuple)):
         for validator in validators:
             if validator is None:
                 continue
-            if validator in _TYPE_NAMES:
-                return {"type": _TYPE_NAMES[validator]}
+            type_name = _type_name_for(validator)
+            if type_name:
+                return {"type": type_name}
             inferred = _type_from_voluptuous_value(validator)
-            if inferred.get("type") != "string" or validator in (str,):
+            if inferred.get("type") != "string" or validator is str:
                 return inferred
     return {"type": "string"}
