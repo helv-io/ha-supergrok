@@ -10,6 +10,7 @@ Prompt text cannot override that grammar.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from typing import Any
@@ -39,6 +40,18 @@ _TYPE_NAMES = {
     float: "number",
     bool: "boolean",
 }
+
+# Prefer a concrete MCP type over string when convert/sanitize sees a union.
+_JSON_TYPE_PREFERENCE = (
+    "integer",
+    "number",
+    "boolean",
+    "object",
+    "array",
+    "string",
+)
+_INT_STRING = re.compile(r"^[+-]?\d+$")
+_NUMBER_STRING = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 
 def parse_tool_arguments(call: Mapping[str, Any]) -> dict[str, Any]:
@@ -135,6 +148,27 @@ def missing_required_properties(
     return [name for name in required_properties(schema) if name not in args]
 
 
+def coerce_arguments_to_schema(
+    schema: Mapping[str, Any] | None, arguments: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """Coerce obvious string encodings to advertised JSON Schema types.
+
+    Does not invent keys or values. Only rewrites a present argument when it is
+    a string encoding of the declared type (digits to integer, true/false to
+    boolean, numeric strings to number).
+    """
+    args = dict(arguments) if isinstance(arguments, Mapping) else {}
+    if not isinstance(schema, Mapping):
+        return args
+    properties = schema.get("properties")
+    if not isinstance(properties, Mapping):
+        return args
+    for name, value in list(args.items()):
+        if name in properties:
+            args[name] = _coerce_value(value, properties[name])
+    return args
+
+
 def schema_from_voluptuous(parameters: Any) -> dict[str, Any]:
     """Best-effort object schema from a voluptuous / Probatio mapping."""
     raw = getattr(parameters, "schema", parameters)
@@ -214,11 +248,30 @@ def _restore_from_fallback(
 ) -> dict[str, Any]:
     """Re-apply voluptuous properties/required if convert or sanitize dropped them."""
     fallback_props = fallback.get("properties")
-    if isinstance(fallback_props, dict) and fallback_props and not sanitized.get("properties"):
+    if not isinstance(fallback_props, dict):
+        fallback_props = {}
+    if fallback_props and not sanitized.get("properties"):
         sanitized["properties"] = {
             name: _sanitize_property(prop) for name, prop in fallback_props.items()
         }
     props = sanitized.get("properties") or {}
+    if isinstance(props, dict):
+        for name, fallback_prop in fallback_props.items():
+            if name not in props:
+                continue
+            fallback_type = _declared_json_type(fallback_prop)
+            current = props[name]
+            current_type = _declared_json_type(current) if isinstance(current, dict) else None
+            if fallback_type in {"integer", "number", "boolean"} and current_type in (
+                None,
+                "string",
+            ):
+                if isinstance(current, dict):
+                    current = dict(current)
+                    current["type"] = fallback_type
+                    props[name] = current
+                else:
+                    props[name] = {"type": fallback_type}
     fallback_required = required_properties(fallback)
     if fallback_required and not sanitized.get("required"):
         restored = [name for name in fallback_required if name in props]
@@ -343,7 +396,10 @@ def _sanitize_property(prop: Any) -> dict[str, Any]:
     prop = _flatten_property_union(prop)
     for key in _UNSUPPORTED_SCHEMA_KEYS:
         prop.pop(key, None)
-    if "type" not in prop:
+    declared = _declared_json_type(prop)
+    if declared:
+        prop["type"] = declared
+    elif "type" not in prop:
         if "properties" in prop:
             prop["type"] = "object"
         elif "items" in prop:
@@ -370,16 +426,101 @@ def _flatten_property_union(prop: dict[str, Any]) -> dict[str, Any]:
     typed = [
         branch
         for branch in branches
-        if isinstance(branch, dict) and branch.get("type") not in (None, "null")
+        if isinstance(branch, dict) and _declared_json_type(branch)
     ]
     if not typed:
         return prop
-    chosen = deepcopy(typed[0])
+    preferred = _prefer_json_type(
+        [_declared_json_type(branch) for branch in typed if _declared_json_type(branch)]
+    )
+    chosen_source = next(
+        (branch for branch in typed if _declared_json_type(branch) == preferred),
+        typed[0],
+    )
+    chosen = deepcopy(chosen_source)
     if prop.get("description") and not chosen.get("description"):
         chosen["description"] = prop["description"]
     if "default" in prop and "default" not in chosen:
         chosen["default"] = prop["default"]
     return chosen
+
+
+def _prefer_json_type(names: list[str | None]) -> str | None:
+    """Pick the most specific advertised JSON Schema type from a union."""
+    present = {name for name in names if isinstance(name, str)}
+    for preferred in _JSON_TYPE_PREFERENCE:
+        if preferred in present:
+            return preferred
+    return None
+
+
+def _declared_json_type(prop: Any) -> str | None:
+    """Concrete JSON Schema type, preferring integer/number/boolean over string."""
+    if not isinstance(prop, dict):
+        return None
+    names: list[str] = []
+    raw = prop.get("type")
+    if isinstance(raw, str) and raw != "null":
+        names.append(raw)
+    elif isinstance(raw, list):
+        names.extend(item for item in raw if isinstance(item, str) and item != "null")
+    if not names:
+        for key in ("anyOf", "oneOf"):
+            branches = prop.get(key)
+            if not isinstance(branches, list):
+                continue
+            for branch in branches:
+                if not isinstance(branch, dict):
+                    continue
+                branch_type = branch.get("type")
+                if isinstance(branch_type, str) and branch_type != "null":
+                    names.append(branch_type)
+                elif isinstance(branch_type, list):
+                    names.extend(
+                        item
+                        for item in branch_type
+                        if isinstance(item, str) and item != "null"
+                    )
+    return _prefer_json_type(names)
+
+
+def _coerce_value(value: Any, prop: Any) -> Any:
+    """Rewrite one argument when it is a string encoding of the declared type."""
+    if not isinstance(prop, dict):
+        return value
+    declared = _declared_json_type(prop)
+    if declared == "object" and isinstance(value, Mapping):
+        return coerce_arguments_to_schema(prop, value)
+    if declared == "array" and isinstance(value, list):
+        items = prop.get("items")
+        return [_coerce_value(item, items) for item in value]
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if declared == "integer":
+        if _INT_STRING.fullmatch(text):
+            try:
+                return int(text)
+            except ValueError:
+                return value
+        return value
+    if declared == "boolean":
+        lowered = text.lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+        return value
+    if declared == "number":
+        if _NUMBER_STRING.fullmatch(text):
+            try:
+                if _INT_STRING.fullmatch(text):
+                    return int(text)
+                return float(text)
+            except ValueError:
+                return value
+        return value
+    return value
 
 
 def _type_name_for(candidate: Any) -> str | None:
