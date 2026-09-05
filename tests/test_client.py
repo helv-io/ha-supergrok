@@ -518,6 +518,178 @@ async def test_chat_stream_yields_content_then_finish() -> None:
     assert events[-1]["tool_calls"] == []
 
 
+async def test_chat_stream_reads_tool_args_from_delta_and_message() -> None:
+    """xAI may put the whole tool call on message, or args at the top level."""
+
+    class StreamResp(FakeResp):
+        def __init__(self) -> None:
+            super().__init__(200, b"")
+            name_only = {
+                "choices": [
+                    {
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call_1",
+                                    "function": {"name": "create_diaper_change"},
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+            complete = {
+                "choices": [
+                    {
+                        "delta": {},
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call_1",
+                                    "function": {
+                                        "name": "create_diaper_change",
+                                        "arguments": '{"child_id": 1, "wet": true}',
+                                    },
+                                }
+                            ]
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+            chunks = [
+                f"data: {json.dumps(name_only)}\n".encode(),
+                f"data: {json.dumps(complete)}\n".encode(),
+                b"data: [DONE]\n",
+            ]
+
+            async def _iter():
+                for chunk in chunks:
+                    yield chunk
+
+            self.content = _iter()
+
+    session = FakeSession([StreamResp()])
+    client = _client()
+    events = []
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=session,
+    ):
+        async for event in client.chat_stream(
+            model="grok-4.6", messages=[{"role": "user", "content": "log a diaper"}]
+        ):
+            events.append(event)
+    finish = events[-1]
+    assert finish["finish_reason"] == "tool_calls"
+    assert len(finish["tool_calls"]) == 1
+    assert finish["tool_calls"][0]["name"] == "create_diaper_change"
+    assert finish["tool_calls"][0]["arguments"] == {"child_id": 1, "wet": True}
+
+
+async def test_chat_stream_concatenates_function_argument_fragments() -> None:
+    """OpenAI-shaped argument fragments must still assemble into one JSON object."""
+
+    class StreamResp(FakeResp):
+        def __init__(self) -> None:
+            super().__init__(200, b"")
+            chunks = [
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "call_1",
+                                        "function": {
+                                            "name": "create_diaper_change",
+                                            "arguments": '{"child_id"',
+                                        },
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "function": {"arguments": ': 1}'},
+                                    }
+                                ]
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ]
+                },
+            ]
+            encoded = [f"data: {json.dumps(chunk)}\n".encode() for chunk in chunks]
+            encoded.append(b"data: [DONE]\n")
+
+            async def _iter():
+                for chunk in encoded:
+                    yield chunk
+
+            self.content = _iter()
+
+    session = FakeSession([StreamResp()])
+    client = _client()
+    events = []
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=session,
+    ):
+        async for event in client.chat_stream(
+            model="grok-4.6", messages=[{"role": "user", "content": "log a diaper"}]
+        ):
+            events.append(event)
+    assert events[-1]["tool_calls"][0]["arguments"] == {"child_id": 1}
+
+
+async def test_chat_parses_top_level_tool_arguments() -> None:
+    """Non-stream Responses-shaped tool calls must not collapse to {}."""
+    session = FakeSession(
+        [
+            FakeResp(
+                200,
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": "call_1",
+                                        "name": "create_diaper_change",
+                                        "arguments": '{"child_id": 1, "solid": false}',
+                                    }
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ]
+                },
+            )
+        ]
+    )
+    client = _client()
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=session,
+    ):
+        result = await client.chat(
+            model="grok-4.6", messages=[{"role": "user", "content": "log a diaper"}]
+        )
+    assert result.tool_calls[0]["arguments"] == {"child_id": 1, "solid": False}
+
+
 async def test_empty_stt_raises() -> None:
     """Empty transcript is an error, not a hang."""
     session = FakeSession([FakeResp(200, {"duration": 1.2})])

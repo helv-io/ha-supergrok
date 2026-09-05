@@ -35,6 +35,7 @@ from .const import (
 )
 from .logutil import elapsed_ms, preview, summarize_tools
 from .oauth import GrokOAuthError, OAuthTokens, refresh_tokens
+from .toolschema import accumulate_stream_tool_delta, parse_tool_calls
 
 PersistTokens = Callable[[OAuthTokens], Awaitable[None] | None]
 
@@ -446,7 +447,7 @@ class GrokClient:
             )
             raise HomeAssistantError("Grok returned no chat choices")
         message = (choices[0] or {}).get("message") or {}
-        tool_calls = _parse_tool_calls(message.get("tool_calls") or [])
+        tool_calls = parse_tool_calls(message.get("tool_calls") or [])
         result = ChatResult(
             text=message.get("content") or "",
             tool_calls=tool_calls,
@@ -538,18 +539,21 @@ class GrokClient:
                         for call in delta.get("tool_calls") or []:
                             if not isinstance(call, dict):
                                 continue
-                            index = int(call.get("index") or 0)
+                            index = _tool_call_index(call, tool_acc)
                             slot = tool_acc.setdefault(
                                 index, {"id": "", "name": "", "arguments": ""}
                             )
-                            if call.get("id"):
-                                slot["id"] = str(call["id"])
-                            function = call.get("function") or {}
-                            if function.get("name"):
-                                slot["name"] = str(function["name"])
-                            if function.get("arguments"):
-                                slot["arguments"] += str(function["arguments"])
-                    tool_calls = _parse_tool_calls(
+                            accumulate_stream_tool_delta(slot, call)
+                        message = choice.get("message") or {}
+                        for call in message.get("tool_calls") or []:
+                            if not isinstance(call, dict):
+                                continue
+                            index = _tool_call_index(call, tool_acc)
+                            slot = tool_acc.setdefault(
+                                index, {"id": "", "name": "", "arguments": ""}
+                            )
+                            accumulate_stream_tool_delta(slot, call)
+                    tool_calls = parse_tool_calls(
                         [
                             {
                                 "id": slot["id"] or f"call_{index}",
@@ -944,20 +948,18 @@ class GrokClient:
                             if delta := event.get("delta"):
                                 text_parts.append(delta)
                         elif event_type == "response.function_call_arguments.done":
-                            args_raw = event.get("arguments") or "{}"
-                            try:
-                                args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
-                            except json.JSONDecodeError:
-                                args = {"_raw": args_raw}
-                            tool_calls.append(
-                                {
-                                    "id": event.get("call_id")
-                                    or event.get("id")
-                                    or f"call_{len(tool_calls)}",
-                                    "name": event.get("name") or "unknown",
-                                    "arguments": args if isinstance(args, dict) else {"value": args},
-                                }
+                            parsed = parse_tool_calls(
+                                [
+                                    {
+                                        "id": event.get("call_id")
+                                        or event.get("id")
+                                        or f"call_{len(tool_calls)}",
+                                        "name": event.get("name") or "unknown",
+                                        "arguments": event.get("arguments") or "{}",
+                                    }
+                                ]
                             )
+                            tool_calls.extend(parsed)
                         elif event_type == "error":
                             err = event.get("error") or event
                             raise HomeAssistantError(
@@ -983,26 +985,12 @@ class GrokClient:
         raise HomeAssistantError(f"Grok Realtime websocket failed: {last_error}")
 
 
-def _parse_tool_calls(raw_calls: list[Any]) -> list[dict[str, Any]]:
-    """Normalize OpenAI-shaped tool_calls into {id, name, arguments}."""
-    tool_calls: list[dict[str, Any]] = []
-    for call in raw_calls:
-        if not isinstance(call, dict):
-            continue
-        function = call.get("function") or {}
-        args_raw = function.get("arguments") or "{}"
-        try:
-            args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
-        except json.JSONDecodeError:
-            args = {"_raw": args_raw}
-        tool_calls.append(
-            {
-                "id": call.get("id") or f"call_{len(tool_calls)}",
-                "name": function.get("name") or call.get("name") or "unknown",
-                "arguments": args if isinstance(args, dict) else {"value": args},
-            }
-        )
-    return tool_calls
+def _tool_call_index(call: Mapping[str, Any], tool_acc: dict[int, dict[str, str]]) -> int:
+    """Read a streamed tool-call index. 0 is valid and must not fall through to a new slot."""
+    raw = call.get("index")
+    if raw is None:
+        return len(tool_acc)
+    return int(raw)
 
 
 async def _iter_sse(resp: aiohttp.ClientResponse) -> AsyncIterator[dict[str, Any] | None]:
