@@ -14,8 +14,6 @@ from collections.abc import Callable, Mapping
 from copy import deepcopy
 from typing import Any
 
-from voluptuous_openapi import convert
-
 from .const import LOGGER
 
 _UNSUPPORTED_SCHEMA_KEYS = {
@@ -241,7 +239,12 @@ def _convert_voluptuous(
         converters.append(to_openapi)
     except ImportError:
         pass
-    converters.append(convert)
+    try:
+        from voluptuous_openapi import convert
+
+        converters.append(convert)
+    except ImportError:
+        LOGGER.debug("voluptuous_openapi is not installed; using voluptuous fallback")
     last_error: Exception | None = None
     for converter in converters:
         try:
