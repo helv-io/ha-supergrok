@@ -6,4 +6,4 @@ ha-ffmpeg>=3.2.2
 mutagen>=1.47.0
 voluptuous-openapi==0.4.1
 pytest-homeassistant-custom-component>=0.13.357
-ruff>=0.16.4
+ruff>=0.16.5
