@@ -7,6 +7,7 @@ import json
 import voluptuous as vol
 
 from custom_components.supergrok.toolschema import (
+    _tool_input_from_call,
     _type_from_voluptuous_value,
     accumulate_stream_tool_delta,
     coerce_arguments_to_schema,
@@ -14,6 +15,7 @@ from custom_components.supergrok.toolschema import (
     missing_required_properties,
     parse_tool_arguments,
     parse_tool_calls,
+    prepare_tool_call,
     sanitize_tool_schema,
     schema_from_voluptuous,
 )
@@ -326,3 +328,197 @@ def test_coerce_leaves_non_numeric_strings_alone() -> None:
     assert coerce_arguments_to_schema(schema, {"child_id": "1.5"}) == {"child_id": "1.5"}
     assert coerce_arguments_to_schema(schema, {}) == {}
     assert missing_required_properties(schema, {}) == ["child_id"]
+
+
+class _FakeJsonInteger:
+    """Stand-in for Probatio ``JsonInteger()`` (class name ``_JsonNumberType``)."""
+
+    def __init__(self, integer: bool = True) -> None:
+        self.integer = integer
+
+    def __repr__(self) -> str:
+        return "JsonInteger()" if self.integer else "JsonNumber()"
+
+
+_FakeJsonInteger.__name__ = "_JsonNumberType"
+
+
+def test_type_from_voluptuous_recognizes_probatio_json_integer() -> None:
+    """HA MCP from_openapi stores type:integer as JsonInteger, not Python int."""
+    assert _type_from_voluptuous_value(_FakeJsonInteger(True)) == {"type": "integer"}
+    assert _type_from_voluptuous_value(_FakeJsonInteger(False)) == {"type": "number"}
+
+
+def test_convert_mcp_from_openapi_keeps_child_id_integer() -> None:
+    """Live HA MCP path: from_openapi(integer) then convert+sanitize+restore."""
+    from probatio import from_openapi
+
+    parameters = from_openapi(BABY_BUDDY_CREATE_DIAPER)
+    converted = convert_tool_parameters(parameters)
+    assert converted["properties"]["child_id"]["type"] == "integer"
+    assert converted["required"] == ["child_id", "time", "wet", "solid"]
+
+    fallback = schema_from_voluptuous(parameters)
+    assert fallback["properties"]["child_id"]["type"] == "integer"
+
+
+def test_coerce_uses_source_integer_when_advertised_schema_says_string() -> None:
+    """0.6.7 advertised JsonInteger as string, so schema-only coerce was a no-op."""
+    from probatio import from_openapi
+
+    source = from_openapi(BABY_BUDDY_CREATE_DIAPER)
+    advertised = {
+        "type": "object",
+        "properties": {
+            "child_id": {"type": "string"},
+            "wet": {"type": "boolean"},
+            "solid": {"type": "boolean"},
+            "time": {"type": "string"},
+        },
+        "required": ["child_id", "time", "wet", "solid"],
+    }
+    coerced = coerce_arguments_to_schema(
+        advertised,
+        {"child_id": "1", "time": "2026-09-05T15:00:00", "wet": True, "solid": False},
+        source=source,
+    )
+    assert coerced["child_id"] == 1
+    assert type(coerced["child_id"]) is int
+
+
+def test_coerce_leaves_string_entity_id_digits_alone() -> None:
+    """id-like keys stay strings when neither schema nor source marks integer."""
+    schema = {
+        "type": "object",
+        "properties": {"entity_id": {"type": "string"}},
+    }
+    parameters = vol.Schema({vol.Required("entity_id"): str})
+    assert coerce_arguments_to_schema(
+        schema, {"entity_id": "1"}, source=parameters
+    ) == {"entity_id": "1"}
+
+
+def test_prepare_tool_call_coerces_live_string_child_id() -> None:
+    """Live failure: Grok sends child_id \"1\"; MCP dispatch must keep a Python int."""
+    from probatio import from_openapi
+
+    tool_name = "babybuddy__babybuddy-diapers_create_diaper_change"
+    parameters = from_openapi(BABY_BUDDY_CREATE_DIAPER)
+    advertised = convert_tool_parameters(parameters)
+    assert advertised["properties"]["child_id"]["type"] == "integer"
+
+    args, missing = prepare_tool_call(
+        {
+            "id": "call_1",
+            "name": tool_name,
+            "arguments": {
+                "child_id": "1",
+                "time": "2026-09-05T15:00:00",
+                "wet": True,
+                "solid": False,
+            },
+        },
+        {tool_name: advertised},
+        {tool_name: parameters},
+    )
+    assert missing == []
+    assert args["child_id"] == 1
+    assert type(args["child_id"]) is int
+    assert args["wet"] is True
+
+
+def test_prepare_tool_call_coerces_when_advertised_type_is_string() -> None:
+    """Dispatch helper still coerces if convert advertised string (0.6.7)."""
+    from probatio import from_openapi
+
+    tool_name = "babybuddy__babybuddy-diapers_create_diaper_change"
+    parameters = from_openapi(BABY_BUDDY_CREATE_DIAPER)
+    advertised = {
+        "type": "object",
+        "properties": {
+            "child_id": {"type": "string"},
+            "time": {"type": "string"},
+            "wet": {"type": "boolean"},
+            "solid": {"type": "boolean"},
+        },
+        "required": ["child_id", "time", "wet", "solid"],
+    }
+    args, missing = prepare_tool_call(
+        {
+            "id": "call_1",
+            "name": tool_name,
+            "arguments": {
+                "child_id": "1",
+                "time": "2026-09-05T15:00:00",
+                "wet": True,
+                "solid": False,
+            },
+        },
+        {tool_name: advertised},
+        {tool_name: parameters},
+    )
+    assert missing == []
+    assert type(args["child_id"]) is int
+    assert args["child_id"] == 1
+
+
+def test_tool_input_from_call_coerces_when_convert_emits_string() -> None:
+    """Convert advertised string for Required int; ToolInput.tool_args is int 1.
+
+    HA only dispatches Baby Buddy MCP when external is False.
+    """
+    tool_name = "babybuddy__babybuddy-diapers_create_diaper_change"
+    parameters = vol.Schema(
+        {
+            vol.Required("child_id"): int,
+            vol.Required("time"): str,
+            vol.Required("wet"): bool,
+            vol.Required("solid"): bool,
+        }
+    )
+    advertised = {
+        "type": "object",
+        "properties": {
+            "child_id": {"type": "string"},
+            "time": {"type": "string"},
+            "wet": {"type": "boolean"},
+            "solid": {"type": "boolean"},
+        },
+        "required": ["child_id", "time", "wet", "solid"],
+    }
+    tool_input, missing = _tool_input_from_call(
+        {
+            "id": "call_1",
+            "name": tool_name,
+            "arguments": {
+                "child_id": "1",
+                "time": "2026-09-05T15:00:00",
+                "wet": True,
+                "solid": False,
+            },
+        },
+        {tool_name: advertised},
+        {tool_name: parameters},
+    )
+    assert missing == []
+    assert tool_input.external is False
+    assert tool_input.tool_args["child_id"] == 1
+    assert type(tool_input.tool_args["child_id"]) is int
+
+
+def test_tool_input_incomplete_call_is_external_so_ha_skips_mcp() -> None:
+    """Missing required args use external=True as the reject path, not MCP."""
+    tool_name = "babybuddy__babybuddy-diapers_create_diaper_change"
+    parameters = vol.Schema({vol.Required("child_id"): int})
+    advertised = {
+        "type": "object",
+        "properties": {"child_id": {"type": "integer"}},
+        "required": ["child_id"],
+    }
+    tool_input, missing = _tool_input_from_call(
+        {"id": "call_1", "name": tool_name, "arguments": {}},
+        {tool_name: advertised},
+        {tool_name: parameters},
+    )
+    assert missing == ["child_id"]
+    assert tool_input.external is True
