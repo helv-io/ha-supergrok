@@ -9,6 +9,14 @@ The integration version is `custom_components/supergrok/manifest.json` → `vers
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-09-05
+
+### Fixed
+
+- Assist tool calls that send string-encoded values (Baby Buddy `child_id: "1"`) are coerced to the advertised JSON Schema type before MCP dispatch: digit strings to integer, `"true"`/`"false"` to boolean, numeric strings to number. Non-numeric strings are left unchanged. Integer fields stay `type: integer` through convert, sanitize, and the voluptuous fallback so xAI is not told the field is a string.
+
+HACS users already on domain `supergrok`: update to 0.6.7 and restart. No new reconfiguration.
+
 ## [0.6.6] - 2026-09-05
 
 ### Fixed

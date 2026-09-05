@@ -9,6 +9,7 @@ import voluptuous as vol
 from custom_components.supergrok.toolschema import (
     _type_from_voluptuous_value,
     accumulate_stream_tool_delta,
+    coerce_arguments_to_schema,
     convert_tool_parameters,
     missing_required_properties,
     parse_tool_arguments,
@@ -235,3 +236,93 @@ def test_accumulate_stream_reads_dict_arguments() -> None:
         {"function": {"name": "create_diaper_change", "arguments": {"child_id": 1}}},
     )
     assert json.loads(slot["arguments"]) == {"child_id": 1}
+
+
+def test_convert_and_sanitize_keep_child_id_integer() -> None:
+    """Integer MCP fields must stay type integer through convert, sanitize, fallback."""
+    parameters = vol.Schema(
+        {
+            vol.Required("child_id"): int,
+            vol.Required("wet"): bool,
+            vol.Optional("amount"): float,
+        }
+    )
+    converted = convert_tool_parameters(parameters)
+    assert converted["properties"]["child_id"]["type"] == "integer"
+    assert converted["properties"]["wet"]["type"] == "boolean"
+    assert converted["properties"]["amount"]["type"] == "number"
+
+    sanitized = sanitize_tool_schema(BABY_BUDDY_CREATE_DIAPER)
+    assert sanitized["properties"]["child_id"]["type"] == "integer"
+
+    type_list = sanitize_tool_schema(
+        {
+            "type": "object",
+            "properties": {"child_id": {"type": ["integer", "null"]}},
+            "required": ["child_id"],
+        }
+    )
+    assert type_list["properties"]["child_id"]["type"] == "integer"
+
+    string_first_union = sanitize_tool_schema(
+        {
+            "type": "object",
+            "properties": {
+                "child_id": {"anyOf": [{"type": "string"}, {"type": "integer"}]}
+            },
+            "required": ["child_id"],
+        }
+    )
+    assert string_first_union["properties"]["child_id"]["type"] == "integer"
+
+
+def test_fallback_restores_integer_when_convert_emits_string(monkeypatch) -> None:
+    """A convert result that marks child_id as string must not be advertised."""
+    monkeypatch.setattr(
+        "custom_components.supergrok.toolschema._convert_voluptuous",
+        lambda *_args, **_kwargs: {
+            "type": "object",
+            "properties": {"child_id": {"type": "string", "description": "ID"}},
+            "required": ["child_id"],
+        },
+    )
+    parameters = vol.Schema({vol.Required("child_id"): int})
+    converted = convert_tool_parameters(parameters)
+    assert converted["properties"]["child_id"]["type"] == "integer"
+    assert converted["required"] == ["child_id"]
+
+
+def test_coerce_string_digits_to_integer_required_field() -> None:
+    """Grok often sends child_id as \"1\"; MCP requires integer."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "child_id": {"type": "integer"},
+            "wet": {"type": "boolean"},
+            "amount": {"type": "number"},
+        },
+        "required": ["child_id"],
+    }
+    coerced = coerce_arguments_to_schema(
+        schema, {"child_id": "1", "wet": "true", "amount": "2.5"}
+    )
+    assert coerced == {"child_id": 1, "wet": True, "amount": 2.5}
+    assert isinstance(coerced["child_id"], int)
+    assert missing_required_properties(schema, coerced) == []
+
+
+def test_coerce_leaves_non_numeric_strings_alone() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "child_id": {"type": "integer"},
+            "wet": {"type": "boolean"},
+            "notes": {"type": "string"},
+        },
+        "required": ["child_id"],
+    }
+    original = {"child_id": "Arthur", "wet": "yes", "notes": "1"}
+    assert coerce_arguments_to_schema(schema, original) == original
+    assert coerce_arguments_to_schema(schema, {"child_id": "1.5"}) == {"child_id": "1.5"}
+    assert coerce_arguments_to_schema(schema, {}) == {}
+    assert missing_required_properties(schema, {}) == ["child_id"]
