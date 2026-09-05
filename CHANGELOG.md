@@ -9,6 +9,14 @@ The integration version is `custom_components/supergrok/manifest.json` → `vers
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-09-05
+
+### Fixed
+
+- Assist no longer crashes during tool-schema conversion with `TypeError: cannot use 'list' as a dict key`. `_type_from_voluptuous_value` used `value in _TYPE_NAMES` on MCP/voluptuous list validators (Baby Buddy `tags`, `type: ["string", "null"]`). Membership is only checked for hashable candidates. Required-field advertising from 0.6.5 is unchanged.
+
+HACS users already on domain `supergrok`: update to 0.6.6 and restart. No new reconfiguration.
+
 ## [0.6.5] - 2026-09-05
 
 ### Fixed
