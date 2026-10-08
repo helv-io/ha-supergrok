@@ -3,7 +3,7 @@
 xAI compiles a tool-call grammar from the advertised JSON Schema and treats
 the schema as strict (additionalProperties defaults to false). If SuperGrok
 advertises ``{"type": "object", "properties": {}}`` the only legal arguments
-are ``{}``, so required MCP fields such as child_id can never be generated.
+are ``{}``, so required fields can never be filled in.
 Prompt text cannot override that grammar.
 """
 
@@ -175,9 +175,9 @@ def _tool_input_from_call(
     """Build an ``llm.ToolInput`` with coerced ``tool_args``.
 
     HA ``ChatLog`` calls ``async_call_tool`` only when ``external`` is False.
-    Baby Buddy MCP is an HA LLM tool, so complete calls must stay
-    ``external=False``. Incomplete calls set ``external=True`` so HA skips
-    dispatch; SuperGrok writes the reject tool result itself.
+    MCP tools are HA LLM tools, so complete calls stay ``external=False``.
+    Incomplete calls set ``external=True`` so HA skips them, and SuperGrok
+    writes the rejected tool result itself.
     """
     from homeassistant.helpers import llm
 
@@ -202,7 +202,7 @@ def coerce_arguments_to_schema(
 
     Does not invent keys or values. Uses the advertised schema and, when
     provided, the original voluptuous/Probatio tool parameters. Digit-only
-    strings on id-like keys (id, child_id, *_id) become int when either view
+    strings on id-like keys (id, *_id) become int when either view
     marks the field integer.
     """
     args = dict(arguments) if isinstance(arguments, Mapping) else {}
@@ -602,7 +602,7 @@ def _json_number_type_name(value: Any) -> str | None:
 
 
 def _is_id_like_key(name: str) -> bool:
-    """True for id / child_id / other *_id argument names."""
+    """True for id and *_id argument names."""
     return name == "id" or name.endswith("_id")
 
 

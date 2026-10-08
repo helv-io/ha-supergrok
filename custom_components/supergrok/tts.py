@@ -1,4 +1,4 @@
-"""Text-to-speech via POST /v1/tts: the HA surface that accepts Grok Voice TTS."""
+"""Grok Voice text-to-speech over POST /v1/tts."""
 
 from __future__ import annotations
 
@@ -83,12 +83,12 @@ class GrokTTSEntity(TextToSpeechEntity):
 
     @callback
     def async_get_supported_voices(self, language: str) -> list[Voice]:
-        """Return Grok voices. language is forwarded on POST /v1/tts."""
+        """Return the Grok voices. The language goes with each request."""
         return self._voices
 
     @property
     def default_options(self) -> Mapping[str, Any]:
-        """Default to Eve / MP3, both first-class on POST /v1/tts."""
+        """Default voice and MP3."""
         default_voice = self.entry.data.get(CONF_TTS_VOICE, DEFAULT_TTS_VOICE)
         return {ATTR_VOICE: default_voice, ATTR_PREFERRED_FORMAT: "mp3"}
 

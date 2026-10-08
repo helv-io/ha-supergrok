@@ -151,9 +151,9 @@ def _tool_sources_by_name(llm_api: llm.APIInstance | None) -> dict[str, Any]:
     return sources
 
 
-# HA ChatLog.async_call_tool runs only when ToolInput.external is False.
-# MCP tools (Baby Buddy) are HA LLM tools, so complete calls must be
-# external=False. Do not set external=True to mark MCP/external servers.
+# HA's ChatLog runs a tool only when ToolInput.external is False. MCP tools are
+# HA LLM tools, so complete calls stay False. Incomplete calls are marked
+# external so HA skips them, and _add_rejected_tool_results answers them.
 
 
 def _rejected_tool_result(missing: list[str]) -> dict[str, Any]:

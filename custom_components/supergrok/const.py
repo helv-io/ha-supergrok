@@ -7,7 +7,7 @@ from typing import Final
 
 DOMAIN: Final = "supergrok"
 LOGGER = logging.getLogger(__package__)
-# Settings → System → Logs → custom_components.supergrok = debug
+# Debug logging: logger > logs > custom_components.supergrok: debug
 
 DEFAULT_NAME: Final = "SuperGrok OAuth"
 DEFAULT_CONVERSATION_NAME: Final = "Grok Conversation"
@@ -21,8 +21,7 @@ DEFAULT_REALTIME_NAME: Final = "Grok Realtime"
 # client/helpers in the tree either way.
 REALTIME_ENABLED: Final = False
 
-# SuperGrok / Grok CLI public OAuth client (no secret). Same client used by
-# the official Grok CLI, Hermes, OpenCode, and other SuperGrok OAuth clients.
+# Public OAuth client of the Grok CLI. It has no secret.
 OAUTH_CLIENT_ID: Final = "b1a00492-073a-47ea-816f-4c329264a828"
 OAUTH_ISSUER: Final = "https://auth.x.ai"
 OAUTH_AUTHORIZE_URL: Final = "https://auth.x.ai/oauth2/authorize"
