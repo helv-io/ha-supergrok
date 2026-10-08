@@ -90,6 +90,14 @@ def _reload_state(entry: ConfigEntry) -> tuple[Any, ...]:
     return (data, dict(entry.options), subentries)
 
 
+def _tokens_match(entry: ConfigEntry, client: GrokClient) -> bool:
+    """Whether the stored tokens are the ones the running client uses."""
+    return (
+        entry.data.get("access_token") == client.tokens.access_token
+        and entry.data.get("refresh_token") == client.tokens.refresh_token
+    )
+
+
 def _persist(hass: HomeAssistant, entry: ConfigEntry) -> Callable[[OAuthTokens], None]:
     def _write(tokens: OAuthTokens) -> None:
         hass.config_entries.async_update_entry(entry, data={**entry.data, **tokens.as_dict()})
@@ -288,9 +296,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     loaded_state = _reload_state(entry)
 
     async def _async_entry_updated(hass: HomeAssistant, entry: GrokConfigEntry) -> None:
-        # A token refresh saves new tokens to entry.data. The client already
-        # holds them, so reloading would only cut off chats in progress.
-        if _reload_state(entry) == loaded_state:
+        # A token refresh saves the client's own new tokens to entry.data, so
+        # reloading would only cut off chats in progress. Tokens the client
+        # does not hold come from signing in again and need a reload.
+        if _reload_state(entry) == loaded_state and _tokens_match(entry, client):
             return
         await async_update_options(hass, entry)
 

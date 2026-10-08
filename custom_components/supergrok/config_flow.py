@@ -263,15 +263,17 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
         if self.source == SOURCE_REAUTH or self._reauth_entry:
             entry = self._reauth_entry or self._get_reauth_entry()
             self._abort_if_unique_id_mismatch(reason="wrong_account")
-            return self.async_update_reload_and_abort(
-                entry,
-                data_updates={
-                    **(self._tokens or {}),
-                    CONF_ACCOUNT_ID: self._account.get("sub"),
-                    CONF_ACCOUNT_EMAIL: self._account.get("email"),
-                    CONF_ACCOUNT_NAME: self._account.get("name"),
-                },
-            )
+            data_updates = {
+                **(self._tokens or {}),
+                CONF_ACCOUNT_ID: self._account.get("sub"),
+                CONF_ACCOUNT_EMAIL: self._account.get("email"),
+                CONF_ACCOUNT_NAME: self._account.get("name"),
+            }
+            if entry.state is ConfigEntryState.LOADED:
+                # The update listener sees the new tokens and reloads once.
+                return self.async_update_and_abort(entry, data_updates=data_updates)
+            # Setup failed, so there is no listener. Reload from here.
+            return self.async_update_reload_and_abort(entry, data_updates=data_updates)
 
         self._abort_if_unique_id_configured()
         return await self.async_step_models()
