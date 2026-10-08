@@ -61,6 +61,8 @@ response_variable: reply
 
 Returns `text` and `model`.
 
+Images must be JPEG, PNG, WebP or GIF files in `/config/www`, your media folder or a folder listed in [`allowlist_external_dirs`](https://www.home-assistant.io/integrations/homeassistant/#allowlist_external_dirs).
+
 </details>
 
 <details><summary>supergrok.generate_image</summary>
@@ -93,6 +95,7 @@ An xAI API key does not work here. Sign in with the account that has the subscri
 | --- | --- |
 | Sign-in fails, or chat or Voice answers 402 or 403 | The account needs SuperGrok or X Premium+. If it has one, turn on debug logging and open an issue with the log. |
 | The browser cannot reach `127.0.0.1` after sign-in | Expected. Copy the whole address and paste it into the form. |
+| `generate_content` says Home Assistant may not read a file | Move the file to `/config/www`, or add its folder to `allowlist_external_dirs` in `configuration.yaml` and restart. |
 | "This SuperGrok account is already configured" | The account is already added. Remove that entry first to add it again. |
 
 Debug logging:
