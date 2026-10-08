@@ -6,6 +6,12 @@ The version is `version` in `custom_components/supergrok/manifest.json`. A relea
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-10-08
+
+### Fixed
+
+- Signing in again works on Home Assistant 2026.12 and later, and reloads the integration once
+
 ## [0.6.10] - 2026-10-08
 
 ### Fixed
