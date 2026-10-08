@@ -1,4 +1,4 @@
-"""SuperGrok OAuth: SuperGrok login for Home Assistant conversation, voice, and Imagine."""
+"""SuperGrok OAuth: a SuperGrok subscription for Assist chat, voice and images."""
 
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ def _image_message(prompt: str, filenames: list[str] | None) -> dict:
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register services. Browser login uses the Grok CLI loopback, not My HA."""
+    """Register the generate_content and generate_image actions."""
 
     def _entry_from_call(call: ServiceCall) -> GrokConfigEntry:
         entry = hass.config_entries.async_get_entry(call.data["config_entry"])
@@ -255,10 +255,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_update_options))
     LOGGER.info(
-        "SuperGrok OAuth %s ready title=%s chat=%s voice=%s realtime=%s imagine=%s "
-        "(enable debug logging for custom_components.supergrok to see request traces)",
+        "SuperGrok OAuth %s ready entry=%s chat=%s voice=%s realtime=%s imagine=%s",
         async_get_loaded_integration(hass, DOMAIN).version,
-        entry.title,
+        entry.entry_id,
         chat_models(selected),
         has_voice(selected),
         has_realtime(selected),
@@ -285,7 +284,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> Non
 
 
 async def async_update_options(hass: HomeAssistant, entry: GrokConfigEntry) -> None:
-    """Reload when a conversation / AI Task subentry is reconfigured."""
+    """Reload the entry when it changes."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 

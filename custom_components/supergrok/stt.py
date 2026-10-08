@@ -1,4 +1,4 @@
-"""Speech-to-text via POST /v1/stt: the HA surface that accepts Grok Voice STT."""
+"""Grok Voice speech-to-text over POST /v1/stt."""
 
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ class GrokSTTEntity(stt.SpeechToTextEntity):
 
     @property
     def supported_sample_rates(self) -> list[stt.AudioSampleRates]:
-        """Sample rates that overlap HA Assist and xAI STT (8k–48k)."""
+        """Sample rates that HA Assist and xAI STT both accept, 8 to 48 kHz."""
         rates = [
             stt.AudioSampleRates.SAMPLERATE_8000,
             stt.AudioSampleRates.SAMPLERATE_16000,

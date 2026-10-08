@@ -841,7 +841,7 @@ class GrokClient:
         if bad_request and last_error is not None:
             raise last_error
         raise HomeAssistantError(
-            f"Grok STT heard audio but returned no text ({last_preview})"
+            f"Grok STT returned no text: {last_preview}"
         )
 
     async def create_realtime_client_secret(
