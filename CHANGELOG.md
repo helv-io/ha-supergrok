@@ -6,6 +6,17 @@ The version is `version` in `custom_components/supergrok/manifest.json`. A relea
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-10-08
+
+### Changed
+
+- README, setup screens and action descriptions rewritten in plain language
+- Logs no longer include the account name or email
+
+### Fixed
+
+- The nightly sign-in check works
+
 ## [0.6.8] - 2026-09-05
 
 ### Fixed
