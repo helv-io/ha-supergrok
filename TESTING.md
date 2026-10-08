@@ -1,15 +1,15 @@
-# Pre-release checklist for 0.6.4
+# Release checklist
 
 Use a throwaway Home Assistant 2026.8+ instance and a real SuperGrok or X Premium+ account. Unit tests cannot prove Voice or the CLI proxy.
 
-0.6.x is a domain rename. Do not keep `custom_components/grok_oauth` next to `custom_components/supergrok`. HACS 0.6.4 must download `supergrok.zip` from the GitHub release and must not raise `No module named 'voluptuous_openapi'`.
+Do not keep `custom_components/grok_oauth` next to `custom_components/supergrok`. HACS must download `supergrok.zip` from the GitHub Release.
 
 Install this branch: copy `custom_components/supergrok` into `/config/custom_components/supergrok` and restart. If `/config/custom_components/grok_oauth` exists, delete it first. Do not tag until every box you can run is ticked.
 
 ## A. Fresh install and login
 
 - [ ] Integration appears as **SuperGrok OAuth** (domain `supergrok`).
-- [ ] README says unofficial / not affiliated.
+- [ ] README says it is unofficial.
 - [ ] Device code (default): verification URL + user code; approving on another device finishes without paste. Unique id is the account `sub`, not a token prefix.
 - [ ] Browser backup: authorize URL uses `http://127.0.0.1:56121/callback` (not my.home-assistant.io). Full `code=` paste works. Wrong `state` is rejected. Bare code still works.
 - [ ] Second add of the same account → already configured.
@@ -73,8 +73,8 @@ Install this branch: copy `custom_components/supergrok` into `/config/custom_com
 
 - [ ] Realtime is not in the picker. `supergrok.create_realtime_session` is not registered.
 - [ ] Domain is `supergrok`. Services are `supergrok.generate_content` / `generate_image`.
-- [ ] HACS download of 0.6.4 succeeds and writes `/config/custom_components/supergrok` (not "no content to download"). Setup does not fail on `voluptuous_openapi`.
+- [ ] HACS download succeeds and writes `/config/custom_components/supergrok`. Setup does not fail on `voluptuous_openapi`.
 - [ ] `pytest` green. Hassfest + HACS Action green.
 - [ ] Ruff clean on `custom_components/` and `tests/`.
 
-When this is green: merge to `main`, tag `0.6.4`. The tag creates the GitHub Release from CHANGELOG and attaches `supergrok.zip`. HACS default-store is a follow-up, not this branch.
+When this is green: merge to `main` and tag the version from `manifest.json`. The tag creates the GitHub Release from CHANGELOG and attaches `supergrok.zip`.

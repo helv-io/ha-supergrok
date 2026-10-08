@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Unofficial community integration. Include logs with `custom_components.supergrok` at debug.
+        Turn on debug logging on the integration page, reproduce the problem, then paste the log below.
   - type: input
     id: ha_version
     attributes:
@@ -28,7 +28,7 @@ body:
       options:
         - SuperGrok
         - X Premium+
-        - xAI developer API key (this integration does not use API keys)
+        - xAI API key only
         - Unsure
     validations:
       required: true
@@ -50,6 +50,6 @@ body:
     id: logs
     attributes:
       label: Debug log snippet
-      description: Settings → System → Logs → custom_components.supergrok = debug. Redact tokens.
+      description: Remove tokens and email addresses before pasting.
     validations:
       required: true

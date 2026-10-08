@@ -1,11 +1,8 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+All notable changes to SuperGrok OAuth are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-The integration version is `custom_components/supergrok/manifest.json` → `version`.
+The version is `version` in `custom_components/supergrok/manifest.json`. A release tag copies its section here into the GitHub Release.
 
 ## [Unreleased]
 
@@ -13,175 +10,141 @@ The integration version is `custom_components/supergrok/manifest.json` → `vers
 
 ### Fixed
 
-- HA MCP `from_openapi` stores JSON Schema `integer` as Probatio `JsonInteger()`. SuperGrok's `to_openapi` convert and voluptuous fallback advertised that as `string`, so `coerce_arguments_to_schema` left Grok's `child_id: "1"` as a string and Baby Buddy rejected it. Convert now prefers `to_json_schema` (which keeps integer), the fallback recognizes `JsonInteger`/`JsonNumber`, and MCP dispatch coerces using both the advertised schema and the original voluptuous/Probatio types. Digit-only strings on `id` / `*_id` become `int` when either view marks the field integer. `ToolInput.tool_args` keeps a Python `int`.
-
-HACS users already on domain `supergrok`: update to 0.6.8 and restart. No new reconfiguration.
+- MCP tools with number ids get a number, not a string, even when the MCP server describes the id loosely
 
 ## [0.6.7] - 2026-09-05
 
 ### Fixed
 
-- Assist tool calls that send string-encoded values (Baby Buddy `child_id: "1"`) are coerced to the advertised JSON Schema type before MCP dispatch: digit strings to integer, `"true"`/`"false"` to boolean, numeric strings to number. Non-numeric strings are left unchanged. Integer fields stay `type: integer` through convert, sanitize, and the voluptuous fallback so xAI is not told the field is a string.
-
-HACS users already on domain `supergrok`: update to 0.6.7 and restart. No new reconfiguration.
+- Tool calls that send a number or true/false as text are turned into the type the tool expects before the call
 
 ## [0.6.6] - 2026-09-05
 
 ### Fixed
 
-- Assist no longer crashes during tool-schema conversion with `TypeError: cannot use 'list' as a dict key`. `_type_from_voluptuous_value` used `value in _TYPE_NAMES` on MCP/voluptuous list validators (Baby Buddy `tags`, `type: ["string", "null"]`). Membership is only checked for hashable candidates. Required-field advertising from 0.6.5 is unchanged.
-
-HACS users already on domain `supergrok`: update to 0.6.6 and restart. No new reconfiguration.
+- Assist no longer fails with `TypeError: cannot use 'list' as a dict key` when an MCP tool has list or union fields
 
 ## [0.6.5] - 2026-09-05
 
 ### Fixed
 
-- Conversation tool calling now advertises JSON Schema `required` properties to xAI. `_sanitize_tool_schema` used to strip a root `anyOf`/`oneOf` and, when convert failed, send `{"type":"object","properties":{}}`. xAI treats tool schemas as strict, so the only legal arguments were `{}`. MCP tools such as Baby Buddy `create_diaper_change` then failed with `'child_id' is a required property` and retried the empty object. SuperGrok now flattens object unions, restores Required fields from the voluptuous schema, and parses tool arguments from both `function.arguments` and top-level Responses-shaped fields. Empty required-arg calls are rejected before MCP dispatch.
-
-HACS users already on domain `supergrok`: update to 0.6.5 and restart. No new reconfiguration.
+- MCP tools with required fields work. Grok was only allowed to send `{}`, so calls such as creating an entry failed on a missing field
+- A tool call that still misses a required field is answered with the missing names instead of being sent
 
 ## [0.6.4] - 2026-08-27
 
 ### Fixed
 
-- Voice TTS now sends `language` on POST `/v1/tts`. xAI requires the field (422 without it), which left Voice PE / Nabu satellites silent after Assist understood the speech. Home Assistant tags map through `tts_api_language()` (`en-US` -> `en`, `pt-BR` stays `pt-BR`, `zh-CN` -> `zh`). Missing or unknown tags fall back to `en`. The field is never omitted and is never `None`.
-- Voice STT always posts `language` together with `format=true`. Unsupported or missing Assist tags use `en` so Inverse Text Normalization stays on without 400ing on `format requires language`. PCM and WAV 400s are not retried as the same bad payload.
-
-HACS users already on domain `supergrok`: update to 0.6.4 and restart. No new reconfiguration.
+- Text-to-speech always sends a language. Voice satellites stayed silent when xAI answered 422
+- Speech-to-text always sends a language with formatting on, and falls back to English when the Assist language has none
 
 ## [0.6.3] - 2026-08-27
 
 ### Fixed
 
-- Voice STT no longer posts `format=true` without `language`. xAI requires an ISO 639-1 code (for example `en`, `pt`, `de`) whenever Inverse Text Normalization is on. Home Assistant BCP-47 tags such as `pt-BR` are mapped to the short code. Languages xAI cannot format omit `format` instead of failing the request.
-
-HACS users already on domain `supergrok`: update to 0.6.3 and restart. No new reconfiguration.
+- Speech-to-text no longer fails with `format requires language`
 
 ## [0.6.2] - 2026-08-27
 
 ### Fixed
 
-- Setup no longer fails with `ModuleNotFoundError: No module named 'voluptuous_openapi'`. The integration declares `voluptuous-openapi==0.4.1` (Home Assistant 2026.8 pin) in `manifest.json` so Home Assistant installs it.
-
-HACS users already on domain `supergrok`: update to 0.6.2 and restart.
+- Setup no longer fails with `No module named 'voluptuous_openapi'`
 
 ## [0.6.1] - 2026-08-27
 
-**Reconfiguration required.** The Home Assistant domain is `supergrok`, not `grok_oauth`. Old config entries will not migrate. 0.6.0 GitHub releases had an empty asset list, so HACS reported "no content to download." 0.6.1 attaches `supergrok.zip` to the GitHub release.
-
-1. Update SuperGrok OAuth to 0.6.1 in HACS (or copy `custom_components/supergrok`).
-2. Remove the old SuperGrok / Grok entry under Settings → Devices & services if it is still listed (domain `grok_oauth`).
-3. Delete `/config/custom_components/grok_oauth` if that folder is still there.
-4. Restart Home Assistant.
-5. Add **SuperGrok OAuth** (domain `supergrok`) and complete SuperGrok sign-in.
+Reconfiguration required when coming from 0.5.x. See Upgrading from 0.5.x in the [README](https://github.com/helv-io/ha-supergrok#troubleshooting).
 
 ### Fixed
 
-- GitHub Release now includes `supergrok.zip` (integration files at the zip root). `hacs.json` sets `zip_release` and `filename` so HACS downloads that asset.
+- The GitHub Release includes `supergrok.zip`, so HACS can download it
 
 ## [0.6.0] - 2026-08-26
 
-**Reconfiguration required.** After upgrading to 0.6.0 you must remove the old `grok_oauth` integration, delete `custom_components/grok_oauth` if that folder is still there, install SuperGrok as domain `supergrok`, then add the integration in Home Assistant and sign in again. Old config entries will not migrate.
+Reconfiguration required. Old `grok_oauth` entries do not move over.
 
-1. Update SuperGrok OAuth to 0.6.0 in HACS (or copy `custom_components/supergrok`).
-2. Remove the old SuperGrok / Grok entry under Settings → Devices & services if it is still listed (domain `grok_oauth`).
-3. Delete `/config/custom_components/grok_oauth` if HACS left it behind after the folder rename.
+1. Update SuperGrok OAuth in HACS.
+2. Remove the old `grok_oauth` entry if it is still listed.
+3. Delete `/config/custom_components/grok_oauth` if it is still there.
 4. Restart Home Assistant.
-5. Add **SuperGrok OAuth** (domain `supergrok`) and complete SuperGrok sign-in.
-
-Services, logger, My Home Assistant config-flow links, and entity-registry rows that used the `grok_oauth` domain do not carry over. Recreate Assist pipeline selections that pointed at the old conversation / Voice / AI Task entities.
+5. Add **SuperGrok OAuth** and sign in again. Pick the Grok entities in your voice assistants again.
 
 ### Breaking
 
-- Home Assistant domain renamed `grok_oauth` → `supergrok`.
-- Integration path is now `custom_components/supergrok/` (HACS installs that folder).
-- Services are `supergrok.generate_content` and `supergrok.generate_image`.
-- Debug logger is `custom_components.supergrok`.
+- Domain renamed from `grok_oauth` to `supergrok`
+- Actions are `supergrok.generate_content` and `supergrok.generate_image`
+- The debug logger is `custom_components.supergrok`
 
 ### Fixed
 
-- Setup no longer fails with `ModuleNotFoundError: Platform grok_oauth.ai_task not found`. The AI Task platform module is part of the integration, and `ai_task` is a manifest dependency so Home Assistant loads it before forwarding that platform.
+- Setup no longer fails with `Platform grok_oauth.ai_task not found`
 
 ## [0.5.0] - 2026-08-26
 
 ### Added
 
-- Conversation replies stream into Assist instead of arriving in one dump.
-- Image attachments on conversation / AI Task and optional `image_filename` on `generate_content`.
-- Temperature and max-tokens on conversation and AI Task subentries.
-- Structured `generate_data` accepts JSON even when Grok wraps it in markdown.
-- Token revoke when the integration is removed.
-- Live model ids from the account are merged into the chat/Imagine pickers.
-- GitHub bug report template and an unauthenticated nightly smoke check against auth.x.ai.
+- Conversation replies stream into Assist
+- Image attachments on conversation and AI Task, and `image_filename` on `generate_content`
+- Temperature and maximum tokens on conversation agents and AI Task
+- Structured `generate_data` accepts JSON wrapped in markdown
+- Removing the integration signs out at xAI
+- Models from your account show in the chat and Imagine pickers
+- Bug report template
 
 ### Fixed
 
-- Voice STT talks to the SuperGrok CLI proxy (not only `api.x.ai`).
-- STT accepts 24 kHz audio. Empty-transcript logs no longer print the `preview` function.
-- 429 responses retry with backoff instead of failing the request.
-- TTS does not POST twice when the gateway already returned audio.
-- Device-code login survives a userinfo failure. Unique ids come from `sub` / JWT, never a token prefix.
-- Voice-only installs no longer invent a Grok 4.6 conversation agent.
-- Hitting the tool-call limit still produces a final assistant reply.
-- Diagnostics redact account email and name.
+- Speech-to-text works on subscription accounts
+- Speech-to-text accepts 24 kHz audio
+- Rate limits are retried with backoff
+- Text-to-speech no longer sends each request twice
+- Device code sign-in works when the profile lookup fails
+- Voice-only setups no longer get a conversation agent
+- The tool-call limit still ends with a reply
+- Diagnostics hide the account email and name
 
 ### Changed
 
-- Identify as `ha-supergrok` on grok.com (still send the CLI auth header; fall back to `grok-shell` if that host 401/403s).
-- Media (Voice / Imagine) prefers `cli-chat-proxy.grok.com` the same way chat already did.
-- README restores an unofficial / not affiliated notice.
-- Conversation / AI Task entities use `has_entity_name` (unique ids unchanged). Voice STT/TTS keep an explicit engine name so Assist TTS does not fail with "TTS engine name is not set."
-- Voice still advertises Assist languages so Grok can be used on any pipeline, but `/v1/tts` and `/v1/stt` no longer send `language` (xAI auto-detects).
-- README uses the official Grok mark (`logo.svg`).
+- Voice and Imagine use the same host as chat
+- Conversation and AI Task entities follow Home Assistant entity naming. Entity ids stay
+- README says the integration is unofficial
 
 ## [0.4.0] - 2026-08-16
 
 ### Added
 
-- Conversation and AI Task config subentries (Home Assistant `ConfigSubentryFlow`, same shape as official OpenAI Conversation). After login, Add → Conversation lets you name an agent, edit its system prompt (template), choose Control Home Assistant, and pick a chat model. Existing installs that only have `selected_models` / entry-level `prompt` keep working: they are migrated to subentries (or fall back) so current Grok conversation entities still appear and still use the stored prompt.
-
-### Changed
-
-- README rewritten for Home Assistant consumers (SpaceXAI, official HA building-block links).
+- Conversation agents and AI Task are added from the integration page. Each agent has a name, instructions, Control Home Assistant and a chat model. Existing agents move over and keep their instructions
 
 ## [0.3.2] - 2026-08-14
 
 ### Changed
 
-- Drop em dashes from copy (README, setup strings, picker labels) and put each My Home Assistant badge on one line so GitHub does not treat leftover whitespace as a link.
+- README and setup text: no em dashes. My Home Assistant buttons fixed
 
 ## [0.3.1] - 2026-08-14
 
 ### Changed
 
-- Public name and GitHub repository are now SuperGrok OAuth (`helv-io/ha-supergrok`). The Home Assistant domain remains `grok_oauth`.
+- Renamed to SuperGrok OAuth, repository `helv-io/ha-supergrok`. The domain stays `grok_oauth`
 
 ## [0.3.0] - 2026-08-14
 
-### Changed
-
-- Realtime is withheld pending a later release. Setup and options no longer offer it; existing entries that had it selected no longer expose a Realtime conversation entity.
-- HACS Action runs with no `ignore` keys (topics are already set on the GitHub repository).
-
 ### Removed
 
-- `grok_oauth.create_realtime_session` is not registered in this release.
+- Realtime, for now
 
 ## [0.2.2] - 2026-08-14
 
 ### Changed
 
-- Device code is now the default SuperGrok sign-in. Browser / paste-the-localhost-callback is the backup.
+- Device code is the default sign-in. Browser sign-in is the backup
 
 ## [0.2.1] - 2026-08-13
 
 ### Fixed
 
-- Browser SuperGrok login no longer sends My Home Assistant as `redirect_uri` (xAI rejects it). Login uses the registered Grok CLI loopback `http://127.0.0.1:56121/callback` and a paste-the-callback step.
+- Browser sign-in works. xAI only accepts the Grok CLI address, so you paste it back after approving
 
 ## [0.2.0] - 2026-08-13
 
 ### Added
 
-- Initial public integration: SuperGrok OAuth, model picker, conversation, Voice TTS/STT, Realtime, and Imagine.
+- First release: SuperGrok sign-in, model picker, conversation, Voice and Imagine
