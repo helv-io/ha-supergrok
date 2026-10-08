@@ -100,7 +100,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Choose device code (default) or browser paste-callback backup."""
+        """Pick device code, the default, or browser sign-in."""
         if user_input is not None:
             method = user_input.get("method") or "device"
             LOGGER.info("Starting SuperGrok login via %s", method)
@@ -117,11 +117,11 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
                             options=[
                                 {
                                     "value": "device",
-                                    "label": "Device code (recommended: no paste, approve on any device)",
+                                    "label": "Device code",
                                 },
                                 {
                                     "value": "browser",
-                                    "label": "Browser login (backup: paste the localhost callback URL)",
+                                    "label": "Browser sign-in",
                                 },
                             ],
                             mode=selector.SelectSelectorMode.LIST,
@@ -293,7 +293,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
                 or self._account.get("email")
                 or DEFAULT_NAME
             )
-            LOGGER.info("Creating SuperGrok OAuth entry for %s models=%s", title, selected)
+            LOGGER.info("Creating SuperGrok OAuth entry models=%s", selected)
             prompt = llm.DEFAULT_INSTRUCTIONS_PROMPT
             llm_apis = [llm.LLM_API_ASSIST]
             return self.async_create_entry(

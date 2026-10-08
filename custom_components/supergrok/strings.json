@@ -3,74 +3,60 @@
     "step": {
       "user": {
         "title": "Sign in with SuperGrok",
-        "description": "Device code is the recommended sign-in: open the verification URL on any device and approve (no paste). Browser login is the backup. xAI only accepts the Grok CLI loopback (`{redirect_uri}`), not My Home Assistant, so that path asks you to paste the callback URL.",
+        "description": "Device code is the easiest: approve on any device. Browser sign-in is the backup and asks you to paste an address.",
         "data": {
           "method": "Sign-in method"
         }
       },
       "browser": {
         "title": "Sign in with SuperGrok",
-        "description": "1. Open [this SuperGrok sign-in page]({authorize_url}) and approve access.\n\n2. After you approve, the browser goes to `{redirect_uri}` and fails to connect. That is expected.\n\n3. Copy the **full URL** from the address bar (it contains `code=`) and paste it below. A bare authorization code also works.",
+        "description": "1. Open [the sign-in page]({authorize_url}) and approve.\n\n2. The browser then opens `{redirect_uri}` and cannot connect. That is expected.\n\n3. Copy the whole address from the address bar and paste it below.",
         "data": {
-          "callback_url": "Callback URL"
+          "callback_url": "Address"
         },
         "data_description": {
-          "callback_url": "Paste the full localhost callback URL (includes state=). A bare authorization code also works but skips the CSRF check."
+          "callback_url": "The address starting with `{redirect_uri}`. The code alone also works."
         }
-      },
-      "auth": {
-        "title": "Approve Grok access"
-      },
-      "oauth": {
-        "title": "Sign in with SuperGrok"
       },
       "oauth_progress": {
         "title": "Approve Grok access"
       },
       "oauth_finish": {
-        "title": "Finishing SuperGrok login"
+        "title": "Finishing sign-in"
       },
       "models": {
-        "title": "Expose Grok to Home Assistant",
-        "description": "Pick the chat models, Voice (TTS/STT), and Imagine surfaces to create as Home Assistant entities. After setup you can add more conversation agents and edit each system prompt. Realtime is not in this release.",
+        "title": "Add to Home Assistant",
+        "description": "Pick the chat models, Voice and Imagine to add. You can add more conversation agents later.",
         "data": {
-          "selected_models": "Models and capabilities"
+          "selected_models": "Models"
         }
       },
       "reauth_confirm": {
-        "title": "Reauthenticate SuperGrok OAuth",
-        "description": "Your SuperGrok session expired or was revoked. Sign in again to keep using Grok in Home Assistant."
+        "title": "Sign in again",
+        "description": "Your SuperGrok session expired or was revoked. Sign in again to keep using Grok."
       }
     },
     "progress": {
-      "wait_for_authorization": "Open [{url}]({url}) on any device and approve access.\n\nIf asked for a code, enter: **{user_code}**\n\nThis page will continue automatically after you approve."
+      "wait_for_authorization": "Open [{url}]({url}) on any device and approve.\n\nIf it asks for a code, enter **{user_code}**.\n\nThis page continues on its own."
     },
     "error": {
-      "select_model": "Select at least one model or capability.",
+      "select_model": "Pick at least one.",
       "cannot_connect": "Could not reach auth.x.ai.",
-      "oauth_failed": "SuperGrok OAuth failed.",
-      "missing_code": "Paste the full localhost callback URL (it must contain code=), or just the authorization code.",
-      "state_mismatch": "That callback does not match this sign-in attempt. Open the sign-in link again and paste the new URL.",
-      "unknown": "Unexpected error."
+      "oauth_failed": "Sign-in failed. Try again.",
+      "missing_code": "Paste the whole address. It must contain code=.",
+      "state_mismatch": "That address is from another sign-in. Open the sign-in page again and paste the new address."
     },
     "abort": {
       "already_configured": "This SuperGrok account is already configured.",
-      "cannot_connect": "Could not reach auth.x.ai to start SuperGrok login.",
-      "oauth_error": "xAI returned an incomplete OAuth response.",
-      "oauth_failed": "SuperGrok OAuth failed.",
-      "oauth_timeout": "Timed out waiting for SuperGrok approval. Start setup again.",
-      "access_denied": "Access was denied on the xAI authorization page.",
-      "reauth_successful": "SuperGrok login was refreshed.",
-      "wrong_account": "You signed in with a different SuperGrok account.",
-      "tier_blocked": "This SuperGrok account is not entitled to the OAuth API surface. SuperGrok / X Premium+ is required; a developer API key is a different product.",
-      "aborted": "Login was cancelled.",
-      "missing_configuration": "SuperGrok OAuth is missing its OAuth implementation.",
-      "missing_credentials": "SuperGrok OAuth credentials are missing.",
-      "authorize_url_timeout": "Timed out creating the SuperGrok authorize URL.",
-      "no_url_available": "No URL available to start OAuth.",
-      "oauth_unauthorized": "xAI rejected the authorization code.",
-      "oauth_implementation_unavailable": "The SuperGrok OAuth implementation is not available.",
-      "user_rejected_authorize": "xAI reported: {error}"
+      "cannot_connect": "Could not reach auth.x.ai.",
+      "oauth_error": "xAI returned an incomplete sign-in response.",
+      "oauth_failed": "Sign-in failed. Try again.",
+      "oauth_timeout": "Sign-in timed out. Start again.",
+      "access_denied": "Access was denied on the xAI page.",
+      "reauth_successful": "Signed in again.",
+      "wrong_account": "That is a different SuperGrok account.",
+      "tier_blocked": "This account has no SuperGrok or X Premium+ subscription. An xAI API key does not work here.",
+      "aborted": "Sign-in was cancelled."
     }
   },
   "config_subentries": {
@@ -83,7 +69,6 @@
       "step": {
         "init": {
           "title": "Conversation agent",
-          "description": "Name this agent, set its system prompt, choose whether it can control Home Assistant, and pick a Grok chat model.",
           "data": {
             "name": "Name",
             "prompt": "Instructions",
@@ -93,9 +78,9 @@
             "temperature": "Temperature"
           },
           "data_description": {
-            "prompt": "Instruct how Grok should respond. This can be a template.",
-            "max_tokens": "Upper bound on the reply length.",
-            "temperature": "Optional creativity (0 to 2). Leave empty for the model default."
+            "prompt": "How Grok should answer. Can be a template.",
+            "max_tokens": "Longest reply, in tokens.",
+            "temperature": "0 to 2. Leave empty for the model default."
           }
         }
       },
@@ -113,7 +98,6 @@
       "step": {
         "init": {
           "title": "AI task",
-          "description": "Name this AI Task entity and pick the Grok chat and Imagine models it should use.",
           "data": {
             "name": "Name",
             "chat_model": "Chat model",
@@ -122,7 +106,9 @@
             "temperature": "Temperature"
           },
           "data_description": {
-            "image_model": "Used for generate_image / Imagine. Leave unset to disable image generation on this entity."
+            "image_model": "Leave empty to turn off image generation for this entity.",
+            "max_tokens": "Longest reply, in tokens.",
+            "temperature": "0 to 2. Leave empty for the model default."
           }
         }
       },
@@ -135,39 +121,39 @@
   "options": {
     "step": {
       "init": {
-        "title": "Grok models",
-        "description": "Choose which Grok chat models, Voice, and Imagine surfaces Home Assistant should expose. Conversation agents and their system prompts are added from the integration page. Realtime is not in this release.",
+        "title": "Models",
+        "description": "Pick the chat models, Voice and Imagine to add. Conversation agents are added on the integration page.",
         "data": {
-          "selected_models": "Models and capabilities"
+          "selected_models": "Models"
         }
       }
     },
     "error": {
-      "select_model": "Select at least one model or capability."
+      "select_model": "Pick at least one."
     }
   },
   "services": {
     "generate_content": {
       "name": "Generate content",
-      "description": "Send a prompt to a Grok chat model using the SuperGrok OAuth session.",
+      "description": "Send a prompt to Grok and get the reply.",
       "fields": {
-        "config_entry": { "name": "SuperGrok OAuth entry", "description": "Configured SuperGrok OAuth integration." },
+        "config_entry": { "name": "Account", "description": "The SuperGrok OAuth entry to use." },
         "prompt": { "name": "Prompt", "description": "Text to send to Grok." },
-        "model": { "name": "Model", "description": "Optional chat model override." },
-        "image_filename": { "name": "Image files", "description": "Optional local image paths to attach to the prompt." }
+        "model": { "name": "Model", "description": "Chat model. Defaults to the first one you picked." },
+        "image_filename": { "name": "Images", "description": "Paths of images to send with the prompt." }
       }
     },
     "generate_image": {
       "name": "Generate image",
-      "description": "Generate an image with Grok Imagine.",
+      "description": "Make images with Grok Imagine.",
       "fields": {
-        "config_entry": { "name": "SuperGrok OAuth entry", "description": "Configured SuperGrok OAuth integration." },
-        "prompt": { "name": "Prompt", "description": "Image description." },
-        "model": { "name": "Imagine model", "description": "grok-imagine-image-2.0, grok-imagine-image, or grok-imagine-image-quality." },
-        "n": { "name": "Number of images", "description": "How many images to generate." },
-        "aspect_ratio": { "name": "Aspect ratio", "description": "Imagine aspect ratio." },
+        "config_entry": { "name": "Account", "description": "The SuperGrok OAuth entry to use." },
+        "prompt": { "name": "Prompt", "description": "What the image should show." },
+        "model": { "name": "Model", "description": "Imagine model. Defaults to the first one you picked." },
+        "n": { "name": "Number of images", "description": "1 to 8." },
+        "aspect_ratio": { "name": "Aspect ratio", "description": "Width to height." },
         "resolution": { "name": "Resolution", "description": "1k or 2k." },
-        "response_format": { "name": "Response format", "description": "url or b64_json." }
+        "response_format": { "name": "Response format", "description": "A link, or the image as base64." }
       }
     }
   }

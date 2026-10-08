@@ -1,9 +1,9 @@
 generate_content:
   name: Generate content
-  description: Send a prompt to a selected Grok chat model using the SuperGrok OAuth session.
+  description: Send a prompt to Grok and get the reply.
   fields:
     config_entry:
-      name: SuperGrok OAuth entry
+      name: Account
       required: true
       selector:
         config_entry:
@@ -20,17 +20,17 @@ generate_content:
       selector:
         text:
     image_filename:
-      name: Image files
+      name: Images
       required: false
       selector:
         text:
 
 generate_image:
   name: Generate image
-  description: Generate an image with Grok Imagine via /v1/images/generations (and /v1/image/generations).
+  description: Make images with Grok Imagine.
   fields:
     config_entry:
-      name: SuperGrok OAuth entry
+      name: Account
       required: true
       selector:
         config_entry:
@@ -42,7 +42,7 @@ generate_image:
         text:
           multiline: true
     model:
-      name: Imagine model
+      name: Model
       required: false
       example: grok-imagine-image-2.0
       selector:
@@ -88,30 +88,3 @@ generate_image:
           options:
             - url
             - b64_json
-
-# Realtime is withheld from this release (REALTIME_ENABLED = False).
-# create_realtime_session:
-#   name: Create Realtime session
-#   description: Mint an ephemeral Grok Realtime client secret (POST /v1/realtime/client_secrets) for wss://api.x.ai/v1/realtime.
-#   fields:
-#     config_entry:
-#       name: SuperGrok OAuth entry
-#       required: true
-#       selector:
-#         config_entry:
-#           integration: supergrok
-#     model:
-#       name: Realtime model
-#       required: false
-#       default: grok-voice-latest
-#       selector:
-#         text:
-#     expires_seconds:
-#       name: Secret lifetime
-#       required: false
-#       default: 600
-#       selector:
-#         number:
-#           min: 30
-#           max: 3600
-#           unit_of_measurement: seconds
