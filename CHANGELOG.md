@@ -6,6 +6,17 @@ The version is `version` in `custom_components/supergrok/manifest.json`. A relea
 
 ## [Unreleased]
 
+## [0.6.10] - 2026-10-08
+
+### Fixed
+
+- Token refreshes no longer reload the integration, so chats and voice replies in progress keep going
+- Changing models in **Configure** reloads once instead of twice
+
+### Security
+
+- `generate_content` only reads images from folders in `allowlist_external_dirs`, and only JPEG, PNG, WebP or GIF files
+
 ## [0.6.9] - 2026-10-08
 
 ### Changed
