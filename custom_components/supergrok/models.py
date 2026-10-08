@@ -42,99 +42,99 @@ class GrokModel:
     ha_platforms: tuple[str, ...]
 
 
-# Voice is a first-class picker option, not just a chat slug. Realtime stays
-# in the catalog so it can be re-enabled via REALTIME_ENABLED. Chat slugs
-# become conversation + AI Task entities.
+# Picker catalog. Chat models become conversation and AI Task entities, Voice
+# becomes STT and TTS, Imagine models go to AI Task. Realtime stays here,
+# hidden while REALTIME_ENABLED is False.
 MODEL_CATALOG: tuple[GrokModel, ...] = (
     GrokModel(
         DEFAULT_CHAT_MODEL,
         "Grok 4.6",
         "chat",
-        "Current frontier chat / reasoning model",
+        "Default",
         ("conversation", "ai_task"),
     ),
     GrokModel(
         "grok-4.5",
         "Grok 4.5",
         "chat",
-        "Previous frontier chat model",
+        "",
         ("conversation", "ai_task"),
     ),
     GrokModel(
         "grok-4.3",
         "Grok 4.3",
         "chat",
-        "Long-context chat model",
+        "",
         ("conversation", "ai_task"),
     ),
     GrokModel(
         "grok-4",
         "Grok 4",
         "chat",
-        "Grok 4 alias",
+        "",
         ("conversation", "ai_task"),
     ),
     GrokModel(
         "grok-4-fast",
         "Grok 4 Fast",
         "chat",
-        "Lower-latency Grok 4",
+        "Faster",
         ("conversation", "ai_task"),
     ),
     GrokModel(
         "grok-build-0.1",
         "Grok Build 0.1",
         "chat",
-        "Coding / agent model used by Grok Build",
+        "Coding",
         ("conversation", "ai_task"),
     ),
     GrokModel(
         "grok-4.20-0309-reasoning",
         "Grok 4.20 Reasoning",
         "chat",
-        "Reasoning-tuned 4.20 snapshot",
+        "",
         ("conversation", "ai_task"),
     ),
     GrokModel(
         "grok-4.20-0309-non-reasoning",
         "Grok 4.20 Non-reasoning",
         "chat",
-        "Fast 4.20 snapshot",
+        "",
         ("conversation", "ai_task"),
     ),
     GrokModel(
         MODEL_VOICE,
-        "Voice (TTS + STT)",
+        "Voice",
         "voice",
-        "Grok Voice REST: POST /v1/tts and POST /v1/stt",
+        "Speech-to-text and text-to-speech",
         ("tts", "stt"),
     ),
     GrokModel(
         MODEL_REALTIME,
-        "Realtime (speech-to-speech)",
+        "Realtime",
         "realtime",
-        "Grok Realtime WebSocket: wss://api.x.ai/v1/realtime",
+        "Speech to speech",
         ("conversation",),
     ),
     GrokModel(
         DEFAULT_IMAGE_MODEL,
         "Grok Imagine 2.0",
         "image",
-        "Image generation via /v1/images/generations",
+        "Images",
         ("ai_task",),
     ),
     GrokModel(
         "grok-imagine-image",
-        "Grok Imagine (fast)",
+        "Grok Imagine",
         "image",
-        "Faster Imagine image model",
+        "Faster images",
         ("ai_task",),
     ),
     GrokModel(
         "grok-imagine-image-quality",
         "Grok Imagine Quality",
         "image",
-        "Higher-fidelity Imagine image model",
+        "Higher quality images",
         ("ai_task",),
     ),
 )
@@ -154,7 +154,9 @@ def picker_options() -> list[dict[str, str]]:
     return [
         {
             "value": model.id,
-            "label": f"{model.label}: {model.description}",
+            "label": f"{model.label}: {model.description}"
+            if model.description
+            else model.label,
         }
         for model in MODEL_CATALOG
         if REALTIME_ENABLED or model.kind != "realtime"
