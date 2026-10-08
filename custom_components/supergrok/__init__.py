@@ -6,6 +6,7 @@ import base64
 from collections.abc import Callable
 from pathlib import Path
 from types import MappingProxyType
+from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
@@ -72,6 +73,21 @@ type GrokConfigEntry = ConfigEntry[GrokClient]
 
 def _selected(entry: ConfigEntry) -> list[str]:
     return list(entry.data.get(CONF_SELECTED_MODELS, [DEFAULT_CHAT_MODEL]))
+
+
+TOKEN_KEYS = frozenset(
+    {"access_token", "refresh_token", "expires_at", "token_type", "id_token"}
+)
+
+
+def _reload_state(entry: ConfigEntry) -> tuple[Any, ...]:
+    """Everything that needs a reload when it changes. Tokens are left out."""
+    data = {key: value for key, value in entry.data.items() if key not in TOKEN_KEYS}
+    subentries = {
+        subentry_id: (sub.subentry_type, sub.title, sub.unique_id, dict(sub.data))
+        for subentry_id, sub in entry.subentries.items()
+    }
+    return (data, dict(entry.options), subentries)
 
 
 def _persist(hass: HomeAssistant, entry: ConfigEntry) -> Callable[[OAuthTokens], None]:
@@ -253,7 +269,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     entry.runtime_data = client
     selected = _selected(entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    entry.async_on_unload(entry.add_update_listener(async_update_options))
+    loaded_state = _reload_state(entry)
+
+    async def _async_entry_updated(hass: HomeAssistant, entry: GrokConfigEntry) -> None:
+        # A token refresh saves new tokens to entry.data. The client already
+        # holds them, so reloading would only cut off chats in progress.
+        if _reload_state(entry) == loaded_state:
+            return
+        await async_update_options(hass, entry)
+
+    entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
     LOGGER.info(
         "SuperGrok OAuth %s ready entry=%s chat=%s voice=%s realtime=%s imagine=%s",
         async_get_loaded_integration(hass, DOMAIN).version,
@@ -284,7 +309,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> Non
 
 
 async def async_update_options(hass: HomeAssistant, entry: GrokConfigEntry) -> None:
-    """Reload the entry when it changes."""
+    """Reload the entry after models, options or agents change."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 

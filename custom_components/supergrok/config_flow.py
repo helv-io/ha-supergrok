@@ -365,11 +365,11 @@ class GrokOAuthOptionsFlow(OptionsFlow):
                     data_schema=_models_schema(current),
                     errors={"base": "select_model"},
                 )
+            # The update listener reloads the entry once the data changes.
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
                 data={**self.config_entry.data, CONF_SELECTED_MODELS: selected},
             )
-            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
             return self.async_create_entry(title="", data={})
 
         return self.async_show_form(step_id="init", data_schema=_models_schema(current))
