@@ -140,7 +140,7 @@
         "config_entry": { "name": "Account", "description": "The SuperGrok OAuth entry to use." },
         "prompt": { "name": "Prompt", "description": "Text to send to Grok." },
         "model": { "name": "Model", "description": "Chat model. Defaults to the first one you picked." },
-        "image_filename": { "name": "Images", "description": "Paths of images to send with the prompt." }
+        "image_filename": { "name": "Images", "description": "JPEG, PNG, WebP or GIF files in a folder Home Assistant may read." }
       }
     },
     "generate_image": {
@@ -155,6 +155,17 @@
         "resolution": { "name": "Resolution", "description": "1k or 2k." },
         "response_format": { "name": "Response format", "description": "A link, or the image as base64." }
       }
+    }
+  },
+  "exceptions": {
+    "image_not_allowed": {
+      "message": "Home Assistant may not read {filename}. Add its folder to allowlist_external_dirs in configuration.yaml."
+    },
+    "image_not_found": {
+      "message": "{filename} does not exist."
+    },
+    "image_not_supported": {
+      "message": "{filename} is not a JPEG, PNG, WebP or GIF image."
     }
   }
 }

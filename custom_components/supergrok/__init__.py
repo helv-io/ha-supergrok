@@ -97,23 +97,41 @@ def _persist(hass: HomeAssistant, entry: ConfigEntry) -> Callable[[OAuthTokens],
     return _write
 
 
-def _image_message(prompt: str, filenames: list[str] | None) -> dict:
-    """Build a chat message, optionally attaching local image files."""
+IMAGE_MIME_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
+
+
+def _image_error(key: str, filename: str) -> ServiceValidationError:
+    return ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key=key,
+        translation_placeholders={"filename": filename},
+    )
+
+
+def _image_message(hass: HomeAssistant, prompt: str, filenames: list[str] | None) -> dict:
+    """Build a chat message with local images attached.
+
+    Does blocking I/O, so run it in the executor. Only files inside
+    allowlist_external_dirs are read, the same rule core integrations use.
+    """
     if not filenames:
         return {"role": "user", "content": prompt}
     parts: list[dict] = [{"type": "text", "text": prompt}]
     for name in filenames:
+        if not hass.config.is_allowed_path(name):
+            raise _image_error("image_not_allowed", name)
         path = Path(name)
         if not path.is_file():
-            raise ServiceValidationError(f"Image file not found: {name}")
-        mime = "image/jpeg"
-        suffix = path.suffix.lower()
-        if suffix == ".png":
-            mime = "image/png"
-        elif suffix in (".webp",):
-            mime = "image/webp"
-        elif suffix in (".gif",):
-            mime = "image/gif"
+            raise _image_error("image_not_found", name)
+        mime = IMAGE_MIME_TYPES.get(path.suffix.lower())
+        if mime is None:
+            raise _image_error("image_not_supported", name)
         encoded = base64.b64encode(path.read_bytes()).decode("ascii")
         parts.append(
             {
@@ -140,12 +158,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         model = call.data.get("model") or entry.data.get(CONF_CHAT_MODEL) or (
             chat_models(selected)[0] if chat_models(selected) else DEFAULT_CHAT_MODEL
         )
-        result = await client.chat(
-            model=model,
-            messages=[
-                _image_message(call.data["prompt"], call.data.get("image_filename"))
-            ],
+        message = await hass.async_add_executor_job(
+            _image_message, hass, call.data["prompt"], call.data.get("image_filename")
         )
+        result = await client.chat(model=model, messages=[message])
         return {"text": result.text, "model": model}
 
     async def generate_image(call: ServiceCall) -> ServiceResponse:
