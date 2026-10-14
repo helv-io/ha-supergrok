@@ -41,6 +41,7 @@
     },
     "error": {
       "select_model": "Pick at least one.",
+      "models_unavailable": "Could not get the Grok model list. Submit to try again.",
       "cannot_connect": "Could not reach auth.x.ai.",
       "oauth_failed": "Sign-in failed. Try again.",
       "missing_code": "Paste the whole address. It must contain code=.",
@@ -129,7 +130,8 @@
       }
     },
     "error": {
-      "select_model": "Pick at least one."
+      "select_model": "Pick at least one.",
+      "models_unavailable": "Could not get the Grok model list. Submit to try again."
     }
   },
   "services": {

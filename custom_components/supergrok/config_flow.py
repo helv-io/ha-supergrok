@@ -87,7 +87,7 @@ def _models_schema(
                 default=selected,
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=picker_options(live),
+                    options=picker_options([*(live or []), *selected]),
                     multiple=True,
                     mode=selector.SelectSelectorMode.LIST,
                 )
@@ -101,7 +101,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
 
     DOMAIN = DOMAIN
     VERSION = 2
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     def __init__(self) -> None:
         self._tokens: dict[str, Any] | None = None
@@ -297,12 +297,20 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Multi-select which Grok surfaces to expose to Home Assistant."""
+        live = await self._async_live_models()
+        if not live:
+            # Grok Latest has nothing to resolve against yet; let the user retry.
+            return self.async_show_form(
+                step_id="models",
+                data_schema=_models_schema(),
+                errors={"base": "models_unavailable"},
+            )
         if user_input is not None:
             selected = without_withheld_models(user_input.get(CONF_SELECTED_MODELS) or [])
             if not selected:
                 return self.async_show_form(
                     step_id="models",
-                    data_schema=_models_schema([], await self._async_live_models()),
+                    data_schema=_models_schema([], live),
                     errors={"base": "select_model"},
                 )
             title = (
@@ -331,7 +339,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="models",
-            data_schema=_models_schema(live=await self._async_live_models()),
+            data_schema=_models_schema(live=live),
         )
 
     async def _async_live_models(self) -> list[str]:
@@ -522,7 +530,9 @@ class GrokSubentryFlowHandler(ConfigSubentryFlow):
             )
         ] = selector.SelectSelector(
             selector.SelectSelectorConfig(
-                options=chat_model_options(live_models),
+                options=chat_model_options(
+                    [*live_models, str(suggested.get(CONF_CHAT_MODEL) or "")]
+                ),
                 mode=selector.SelectSelectorMode.DROPDOWN,
             )
         )
@@ -549,7 +559,9 @@ class GrokSubentryFlowHandler(ConfigSubentryFlow):
                 )
             ] = selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=image_model_options(live_models),
+                    options=image_model_options(
+                        [*live_models, str(suggested.get(CONF_IMAGE_MODEL) or "")]
+                    ),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             )

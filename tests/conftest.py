@@ -34,3 +34,19 @@ def ignore_aiohttp_shutdown_threads(monkeypatch):
         ]
 
     monkeypatch.setattr(threading, "enumerate", _enumerate)
+
+
+# Example /models answer. Tests use these ids as data; the integration ships none.
+LIVE_MODELS = ["grok-4.6", "grok-4.5", "grok-imagine-image-2.0"]
+
+
+@pytest.fixture(autouse=True)
+def live_models(monkeypatch):
+    """First-run picker sees an example account model list instead of the network."""
+    from unittest.mock import AsyncMock
+
+    from custom_components.supergrok.config_flow import GrokOAuthConfigFlow
+
+    mock = AsyncMock(return_value=list(LIVE_MODELS))
+    monkeypatch.setattr(GrokOAuthConfigFlow, "_async_live_models", mock)
+    return mock
