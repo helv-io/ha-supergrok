@@ -1042,7 +1042,7 @@ _GENERAL_CHAT_ID = re.compile(r"^grok-(\d+)(?:\.(\d+))?$")
 def newest_chat_model(
     ids: list[str], created: dict[str, int] | None = None
 ) -> str | None:
-    """Pick the frontier general chat model, e.g. grok-4.7 over grok-4.6.
+    """Pick the frontier general chat model, the highest grok-N.M.
 
     Only plain grok-N or grok-N.M ids count, so fast, coding and dated
     variants never win. Release time decides when /models reports it.

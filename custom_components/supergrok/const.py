@@ -102,7 +102,6 @@ LEGACY_DEFAULT_IMAGE_MODEL: Final = "grok-imagine-image-2.0"
 MODELS_CACHE_SECONDS: Final = 300
 MODEL_IMAGE_LATEST: Final = "imagine-latest"
 DEFAULT_IMAGE_MODEL: Final = MODEL_IMAGE_LATEST
-DEFAULT_VOICE_MODEL: Final = "grok-voice-think-fast-2.0"
 DEFAULT_REALTIME_MODEL: Final = "grok-voice-latest"
 DEFAULT_TTS_VOICE: Final = "eve"
 DEFAULT_MAX_TOKENS: Final = 4096

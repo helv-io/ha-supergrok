@@ -51,7 +51,7 @@ class GrokSTTEntity(stt.SpeechToTextEntity):
             identifiers={(DOMAIN, self._attr_unique_id)},
             name=DEFAULT_STT_NAME,
             manufacturer="xAI",
-            model="grok-stt",
+            model="Speech-to-text",
             entry_type=dr.DeviceEntryType.SERVICE,
         )
 
