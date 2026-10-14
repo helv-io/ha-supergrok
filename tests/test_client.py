@@ -803,3 +803,13 @@ async def test_latest_without_any_list_fails_clearly() -> None:
     ), patch("custom_components.supergrok.client.asyncio.sleep", new=AsyncMock()):
         with pytest.raises(HomeAssistantError, match="model list"):
             await client.resolve_model("latest")
+
+
+def test_newest_image_model_prefers_the_main_line() -> None:
+    """Imagine Latest skips tagged variants such as -quality."""
+    from custom_components.supergrok.client import newest_image_model
+
+    ids = ["grok-imagine-image", "grok-imagine-image-2.0", "grok-imagine-image-quality", "grok-4.6"]
+    created = {"grok-imagine-image": 1, "grok-imagine-image-2.0": 2, "grok-imagine-image-quality": 3}
+    assert newest_image_model(ids, created) == "grok-imagine-image-2.0"
+    assert newest_image_model(["grok-4.6"]) is None

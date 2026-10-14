@@ -18,6 +18,7 @@ from .const import (
     CONF_TEMPERATURE,
     DEFAULT_CHAT_MODEL,
     DEFAULT_MAX_TOKENS,
+    DEFAULT_REALTIME_MODEL,
     DEFAULT_REALTIME_NAME,
     DEFAULT_TTS_VOICE,
     DOMAIN,
@@ -25,7 +26,7 @@ from .const import (
     REALTIME_ENABLED,
 )
 from .helpers import async_run_chat_log
-from .models import CATALOG_BY_ID, config_option, conversation_agent_specs, has_realtime
+from .models import config_option, conversation_agent_specs, has_realtime, model_label
 
 PARALLEL_UPDATES = 0
 
@@ -63,7 +64,7 @@ async def async_setup_entry(
             [
                 GrokConversationEntity(
                     config_entry,
-                    "grok-voice-latest",
+                    DEFAULT_REALTIME_MODEL,
                     realtime=True,
                     default_agent=not specs,
                 )
@@ -103,12 +104,7 @@ class GrokConversationEntity(
         else:
             self._model = model or DEFAULT_CHAT_MODEL
             self._attr_unique_id = f"{entry.entry_id}_{'realtime' if realtime else self._model}"
-            catalog = CATALOG_BY_ID.get(self._model)
-            device_name = (
-                DEFAULT_REALTIME_NAME
-                if realtime
-                else (catalog.label if catalog else f"Grok {self._model}")
-            )
+            device_name = DEFAULT_REALTIME_NAME if realtime else model_label(self._model)
             self._attr_name = None
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, self._attr_unique_id)},

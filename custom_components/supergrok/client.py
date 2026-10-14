@@ -30,6 +30,7 @@ from .const import (
     LOGGER,
     MAX_STATUS_RETRIES,
     MEDIA_API_BASES,
+    MODEL_IMAGE_LATEST,
     MODEL_LATEST,
     MODELS_CACHE_SECONDS,
     NO_MODEL_LIST,
@@ -410,10 +411,14 @@ class GrokClient:
         return list(ids)
 
     async def resolve_model(self, model: str) -> str:
-        """Turn "latest" into the newest Grok chat model the account has."""
-        if model != MODEL_LATEST:
+        """Turn Grok Latest or Imagine Latest into the newest model the account has."""
+        if model == MODEL_LATEST:
+            pick = newest_chat_model
+        elif model == MODEL_IMAGE_LATEST:
+            pick = newest_image_model
+        else:
             return model
-        newest = newest_chat_model(await self.list_models(), self.models_created)
+        newest = pick(await self.list_models(), self.models_created)
         if newest is None:
             raise HomeAssistantError(NO_MODEL_LIST)
         return newest
@@ -644,6 +649,7 @@ class GrokClient:
         quality: str | None = None,
     ) -> list[ImageResult]:
         """Generate images via /v1/images/generations and /v1/image/generations."""
+        model = await self.resolve_model(model)
         body: dict[str, Any] = {
             "model": model,
             "prompt": prompt,
@@ -1052,6 +1058,24 @@ def newest_chat_model(
         return (created.get(item, 0), int(match.group(1)), int(match.group(2) or 0))
 
     return max(candidates, key=rank)
+
+
+_IMAGE_ID = re.compile(r"^grok-imagine-image")
+
+
+def newest_image_model(
+    ids: list[str], created: dict[str, int] | None = None
+) -> str | None:
+    """Pick the newest Imagine image model; release time first, then id."""
+    created = created or {}
+    candidates = [item for item in ids if _IMAGE_ID.match(item)]
+    if not candidates:
+        return None
+    # Tagged ids such as -quality or -fast are variants, not the main line.
+    main = [
+        item for item in candidates if re.fullmatch(r"grok-imagine-image(-[\d.]+)?", item)
+    ] or candidates
+    return max(main, key=lambda item: (created.get(item, 0), item))
 
 
 def _tool_call_index(call: Mapping[str, Any], tool_acc: dict[int, dict[str, str]]) -> int:
