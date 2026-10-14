@@ -90,7 +90,7 @@ async def test_migrate_v1_creates_conversation_subentries(hass: HomeAssistant) -
     assert entry.version == 2
     conversations = entry.get_subentries_of_type(SUBENTRY_TYPE_CONVERSATION)
     assert len(conversations) == 1
-    assert conversations[0].data[CONF_CHAT_MODEL] == "grok-4.6"
+    assert conversations[0].data[CONF_CHAT_MODEL] == "latest"
     assert conversations[0].data[CONF_PROMPT] == "Legacy prompt"
     assert conversations[0].data[CONF_LLM_HASS_API] == [llm.LLM_API_ASSIST]
     assert len(entry.get_subentries_of_type(SUBENTRY_TYPE_AI_TASK)) == 1
@@ -98,5 +98,39 @@ async def test_migrate_v1_creates_conversation_subentries(hass: HomeAssistant) -
     specs = conversation_agent_specs(entry)
     assert len(specs) == 1
     subentry, model, _default = specs[0]
-    assert model == "grok-4.6"
+    assert model == "latest"
     assert config_option(entry, subentry, CONF_PROMPT) == "Legacy prompt"
+
+
+async def test_migrate_old_default_to_latest(hass: HomeAssistant) -> None:
+    """The old frozen default follows new releases; other picks stay put."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        minor_version=1,
+        data={CONF_SELECTED_MODELS: ["grok-4.6", "grok-4.5", "voice"]},
+        subentries_data=[
+            {
+                "data": {CONF_CHAT_MODEL: "grok-4.6", CONF_PROMPT: "Keep me"},
+                "subentry_type": SUBENTRY_TYPE_CONVERSATION,
+                "title": "Grok 4.6",
+                "unique_id": None,
+            },
+            {
+                "data": {CONF_CHAT_MODEL: "grok-4.5"},
+                "subentry_type": SUBENTRY_TYPE_CONVERSATION,
+                "title": "Kitchen",
+                "unique_id": None,
+            },
+        ],
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry)
+    assert entry.minor_version == 2
+    assert entry.data[CONF_SELECTED_MODELS] == ["latest", "grok-4.5", "voice"]
+    first, second = entry.get_subentries_of_type(SUBENTRY_TYPE_CONVERSATION)
+    assert first.data == {CONF_CHAT_MODEL: "latest", CONF_PROMPT: "Keep me"}
+    assert first.title == "Grok Latest"
+    assert second.data[CONF_CHAT_MODEL] == "grok-4.5"
+    assert second.title == "Kitchen"

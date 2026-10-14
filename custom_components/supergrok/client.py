@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import re
 import time
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
@@ -23,11 +24,13 @@ from .const import (
     CLIENT_IDENTIFIER,
     CLIENT_IDENTIFIER_FALLBACK,
     CLIENT_VERSION_FALLBACK,
+    FALLBACK_CHAT_MODEL,
     GROK_CLI_TOKEN_AUTH,
     IMAGE_PATHS,
     LOGGER,
     MAX_STATUS_RETRIES,
     MEDIA_API_BASES,
+    MODEL_LATEST,
     MODELS_CACHE_SECONDS,
     REALTIME_WS_URLS,
     RETRY_STATUS,
@@ -388,6 +391,12 @@ class GrokClient:
         self._models_fetched = time.monotonic()
         return list(ids)
 
+    async def resolve_model(self, model: str) -> str:
+        """Turn "latest" into the newest Grok chat model the account has."""
+        if model != MODEL_LATEST:
+            return model
+        return newest_chat_model(await self.list_models(), self.models_created)
+
     def _chat_body(
         self,
         *,
@@ -425,6 +434,7 @@ class GrokClient:
         response_format: dict[str, Any] | None = None,
     ) -> ChatResult:
         """Call chat completions (OpenAI-compatible)."""
+        model = await self.resolve_model(model)
         body = self._chat_body(
             model=model,
             messages=messages,
@@ -491,6 +501,7 @@ class GrokClient:
     ) -> AsyncIterator[dict[str, Any]]:
         """Stream chat completions as HA-friendly deltas, then a finish event."""
         await self.async_access_token()
+        model = await self.resolve_model(model)
         body = self._chat_body(
             model=model,
             messages=messages,
@@ -996,6 +1007,28 @@ class GrokClient:
                 LOGGER.warning("Realtime websocket failed on %s: %s", url, err)
                 continue
         raise HomeAssistantError(f"Grok Realtime websocket failed: {last_error}")
+
+
+_GENERAL_CHAT_ID = re.compile(r"^grok-(\d+)(?:\.(\d+))?$")
+
+
+def newest_chat_model(ids: list[str], created: dict[str, int] | None = None) -> str:
+    """Pick the frontier general chat model, e.g. grok-4.7 over grok-4.6.
+
+    Only plain grok-N or grok-N.M ids count, so fast, coding and dated
+    variants never win. Release time decides when /models reports it.
+    """
+    created = created or {}
+    candidates = [item for item in ids if _GENERAL_CHAT_ID.match(item)]
+    if not candidates:
+        return FALLBACK_CHAT_MODEL
+
+    def rank(item: str) -> tuple[int, int, int]:
+        match = _GENERAL_CHAT_ID.match(item)
+        assert match
+        return (created.get(item, 0), int(match.group(1)), int(match.group(2) or 0))
+
+    return max(candidates, key=rank)
 
 
 def _tool_call_index(call: Mapping[str, Any], tool_acc: dict[int, dict[str, str]]) -> int:
