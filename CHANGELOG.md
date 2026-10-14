@@ -6,6 +6,17 @@ The version is `version` in `custom_components/supergrok/manifest.json`. A relea
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-14
+
+### Added
+
+- **Grok Latest** model choice that follows new Grok releases, now the default
+
+### Changed
+
+- Agents still on the old default, Grok 4.6, move to **Grok Latest** on update
+- Model pickers list the models your account has each time they open, so new releases show up without an update
+
 ## [0.6.11] - 2026-10-08
 
 ### Fixed
