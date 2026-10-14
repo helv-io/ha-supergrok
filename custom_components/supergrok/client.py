@@ -18,13 +18,13 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 
 from .const import (
     CHAT_API_BASES,
     CLIENT_IDENTIFIER,
     CLIENT_IDENTIFIER_FALLBACK,
     CLIENT_VERSION_FALLBACK,
-    FALLBACK_CHAT_MODEL,
     GROK_CLI_TOKEN_AUTH,
     IMAGE_PATHS,
     LOGGER,
@@ -32,6 +32,7 @@ from .const import (
     MEDIA_API_BASES,
     MODEL_LATEST,
     MODELS_CACHE_SECONDS,
+    NO_MODEL_LIST,
     REALTIME_WS_URLS,
     RETRY_STATUS,
     stt_format_language,
@@ -91,6 +92,7 @@ class GrokClient:
         hass: HomeAssistant,
         tokens: OAuthTokens,
         persist: PersistTokens | None = None,
+        models_store: Store | None = None,
     ) -> None:
         self.hass = hass
         self._tokens = tokens
@@ -103,6 +105,7 @@ class GrokClient:
         self._models_cache: list[str] | None = None
         self._models_fetched = 0.0
         self.models_created: dict[str, int] = {}
+        self._models_store = models_store
         self.recent_events: deque[str] = deque(maxlen=20)
 
     def _note(self, message: str) -> None:
@@ -358,6 +361,19 @@ class GrokClient:
             f"{last_body or last_error}"
         )
 
+    async def async_load_models(self) -> None:
+        """Seed the model list from the last good /models answer on disk."""
+        if self._models_store is None:
+            return
+        stored = await self._models_store.async_load()
+        if not isinstance(stored, dict) or not isinstance(stored.get("ids"), list):
+            return
+        self._models_cache = [str(item) for item in stored["ids"]]
+        created = stored.get("created")
+        self.models_created = dict(created) if isinstance(created, dict) else {}
+        # Stale on purpose: the next picker or "latest" request refetches.
+        self._models_fetched = 0.0
+
     async def list_models(self, *, refresh: bool = False) -> list[str]:
         """Best-effort model catalog from the live account.
 
@@ -389,13 +405,18 @@ class GrokClient:
         self._models_cache = ids
         self.models_created = created
         self._models_fetched = time.monotonic()
+        if ids and self._models_store is not None:
+            await self._models_store.async_save({"ids": ids, "created": created})
         return list(ids)
 
     async def resolve_model(self, model: str) -> str:
         """Turn "latest" into the newest Grok chat model the account has."""
         if model != MODEL_LATEST:
             return model
-        return newest_chat_model(await self.list_models(), self.models_created)
+        newest = newest_chat_model(await self.list_models(), self.models_created)
+        if newest is None:
+            raise HomeAssistantError(NO_MODEL_LIST)
+        return newest
 
     def _chat_body(
         self,
@@ -1012,7 +1033,9 @@ class GrokClient:
 _GENERAL_CHAT_ID = re.compile(r"^grok-(\d+)(?:\.(\d+))?$")
 
 
-def newest_chat_model(ids: list[str], created: dict[str, int] | None = None) -> str:
+def newest_chat_model(
+    ids: list[str], created: dict[str, int] | None = None
+) -> str | None:
     """Pick the frontier general chat model, e.g. grok-4.7 over grok-4.6.
 
     Only plain grok-N or grok-N.M ids count, so fast, coding and dated
@@ -1021,7 +1044,7 @@ def newest_chat_model(ids: list[str], created: dict[str, int] | None = None) -> 
     created = created or {}
     candidates = [item for item in ids if _GENERAL_CHAT_ID.match(item)]
     if not candidates:
-        return FALLBACK_CHAT_MODEL
+        return None
 
     def rank(item: str) -> tuple[int, int, int]:
         match = _GENERAL_CHAT_ID.match(item)

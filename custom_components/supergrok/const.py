@@ -93,8 +93,8 @@ MODEL_REALTIME: Final = "realtime"
 # "latest" follows new Grok releases; it is resolved against /models per request.
 MODEL_LATEST: Final = "latest"
 DEFAULT_CHAT_MODEL: Final = MODEL_LATEST
-# Used for "latest" when /models is unreachable.
-FALLBACK_CHAT_MODEL: Final = "grok-4.7"
+NO_MODEL_LIST: Final = "Could not get the Grok model list. Try again in a moment."
+MODELS_STORE_VERSION: Final = 1
 # Old installs saved the then-default model; migration moves it to "latest".
 LEGACY_DEFAULT_CHAT_MODEL: Final = "grok-4.6"
 LEGACY_DEFAULT_TITLE: Final = "Grok 4.6"
