@@ -36,6 +36,7 @@ from homeassistant.helpers import (
     selector,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_loaded_integration
 
@@ -52,6 +53,7 @@ from .const import (
     LEGACY_DEFAULT_TITLE,
     LOGGER,
     MODEL_LATEST,
+    MODELS_STORE_VERSION,
     REALTIME_ENABLED,
     SERVICE_CREATE_REALTIME_SESSION,
     SERVICE_GENERATE_CONTENT,
@@ -279,6 +281,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+def _models_store(hass: HomeAssistant, entry: ConfigEntry) -> Store:
+    """Last good /models answer, kept outside entry data so saving never reloads."""
+    return Store(hass, MODELS_STORE_VERSION, f"{DOMAIN}.models.{entry.entry_id}")
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool:
     """Set up SuperGrok OAuth from a config entry."""
     try:
@@ -286,7 +293,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     except KeyError as err:
         raise ConfigEntryAuthFailed("SuperGrok OAuth tokens are missing") from err
 
-    client = GrokClient(hass, tokens, persist=_persist(hass, entry))
+    client = GrokClient(
+        hass, tokens, persist=_persist(hass, entry), models_store=_models_store(hass, entry)
+    )
+    await client.async_load_models()
     try:
         await client.async_access_token()
     except ConfigEntryAuthFailed:
@@ -327,6 +337,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> boo
 
 async def async_remove_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> None:
     """Revoke the SuperGrok refresh token. Removal still succeeds if revoke fails."""
+    await _models_store(hass, entry).async_remove()
     try:
         tokens = OAuthTokens.from_dict(dict(entry.data))
     except KeyError:

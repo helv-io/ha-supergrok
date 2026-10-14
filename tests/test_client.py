@@ -732,12 +732,10 @@ async def test_list_models_refreshes_instead_of_freezing() -> None:
 def test_newest_chat_model_picks_the_frontier() -> None:
     """Plain grok-N.M ids only; release time first, then version."""
     from custom_components.supergrok.client import newest_chat_model
-    from custom_components.supergrok.const import FALLBACK_CHAT_MODEL
-
     ids = ["grok-4.6", "grok-4.7", "grok-4-fast", "grok-4.20-0309-reasoning", "grok-build-0.1"]
     assert newest_chat_model(ids) == "grok-4.7"
     assert newest_chat_model(["grok-4.20", "grok-4.7"], {"grok-4.20": 1, "grok-4.7": 2}) == "grok-4.7"
-    assert newest_chat_model([]) == FALLBACK_CHAT_MODEL
+    assert newest_chat_model([]) is None
 
 
 async def test_chat_resolves_latest() -> None:
@@ -755,3 +753,53 @@ async def test_chat_resolves_latest() -> None:
     ):
         await client.chat(model="latest", messages=[{"role": "user", "content": "hi"}])
     assert session.calls[-1][2]["json"]["model"] == "grok-4.7"
+
+
+class MemoryStore:
+    """Stand-in for homeassistant.helpers.storage.Store."""
+
+    def __init__(self, data=None) -> None:
+        self.data = data
+
+    async def async_load(self):
+        return self.data
+
+    async def async_save(self, data) -> None:
+        self.data = data
+
+
+async def test_model_list_persists_and_is_the_fallback() -> None:
+    """The last good list survives restarts and covers an unreachable /models."""
+    store = MemoryStore()
+    session = FakeSession(
+        [FakeResp(200, {"data": [{"id": "grok-9", "created": 9}, {"id": "grok-8", "created": 8}]})]
+    )
+    client = GrokClient(MagicMock(), TOKENS, models_store=store)
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=session,
+    ):
+        await client.list_models()
+    assert store.data["ids"] == ["grok-9", "grok-8"]
+
+    restarted = GrokClient(MagicMock(), TOKENS, models_store=store)
+    await restarted.async_load_models()
+    down = FakeSession([FakeResp(500, {"error": "down"})] * 8)
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=down,
+    ), patch("custom_components.supergrok.client.asyncio.sleep", new=AsyncMock()):
+        assert await restarted.resolve_model("latest") == "grok-9"
+
+
+async def test_latest_without_any_list_fails_clearly() -> None:
+    """No live or stored list means a clear error, not a guessed model."""
+    client = GrokClient(MagicMock(), TOKENS, models_store=MemoryStore())
+    await client.async_load_models()
+    down = FakeSession([FakeResp(500, {"error": "down"})] * 8)
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=down,
+    ), patch("custom_components.supergrok.client.asyncio.sleep", new=AsyncMock()):
+        with pytest.raises(HomeAssistantError, match="model list"):
+            await client.resolve_model("latest")
