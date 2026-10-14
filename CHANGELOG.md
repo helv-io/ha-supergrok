@@ -8,13 +8,19 @@ The version is `version` in `custom_components/supergrok/manifest.json`. A relea
 
 ## [0.7.1] - 2026-10-14
 
+### Added
+
+- **Imagine Latest** model choice that follows new Imagine releases, now the default for images
+
 ### Changed
 
 - No model names are built in: pickers show **Grok Latest**, **Imagine Latest**, **Voice** and the models your account has
-- The last model list is saved, so **Grok Latest** keeps working when xAI cannot list models
-- **Imagine Latest** follows new Imagine releases, and agents on the old Imagine default move to it on update
+- The last model list is saved, so **Grok Latest** and **Imagine Latest** keep working when xAI cannot list models
 - First setup asks you to try again when the model list cannot be loaded, instead of guessing a model
-- A request on **Grok Latest** with no model list fails with a clear error instead of using a fixed model
+- A request on **Grok Latest** or **Imagine Latest** with no model list fails with a clear error instead of using a fixed model
+- Agents and AI Tasks on the old default Imagine model move to **Imagine Latest** on update
+- Pickers keep your saved model selectable even when xAI no longer lists it
+- The Text-to-speech and Speech-to-text devices show what they do instead of a model name
 
 ## [0.7.0] - 2026-10-14
 
@@ -24,7 +30,7 @@ The version is `version` in `custom_components/supergrok/manifest.json`. A relea
 
 ### Changed
 
-- Agents still on the old default, Grok 4.6, move to **Grok Latest** on update
+- Agents still on the old default chat model move to **Grok Latest** on update
 - Model pickers list the models your account has each time they open, so new releases show up without an update
 
 ## [0.6.11] - 2026-10-08
