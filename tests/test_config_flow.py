@@ -389,3 +389,19 @@ async def test_create_conversation_subentry_not_loaded(hass: HomeAssistant) -> N
     result = await flow.async_step_user()
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "entry_not_loaded"
+
+
+async def test_first_run_without_model_list_asks_to_retry(
+    hass: HomeAssistant, live_models
+) -> None:
+    """No /models answer at setup shows a short error instead of guessing."""
+    live_models.return_value = []
+    flow = GrokOAuthConfigFlow()
+    flow.hass = hass
+    result = await flow.async_step_models()
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "models_unavailable"}
+
+    live_models.return_value = ["grok-4.6"]
+    result = await flow.async_step_models()
+    assert result["errors"] is None
