@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState, ConfigSubentry
@@ -183,3 +183,18 @@ async def test_reauth_after_failed_setup_reloads_once(
     assert entry.data["access_token"] == "signed-in-access"
     reload.assert_awaited_once_with(entry.entry_id)
     assert "update listener" not in caplog.text
+
+
+async def test_configure_lists_live_models(hass: HomeAssistant, loaded) -> None:
+    """Configure fetches the account's models each time it opens."""
+    entry, _ = loaded
+    client = MagicMock()
+    client.list_models = AsyncMock(return_value=["grok-4.7"])
+    entry.runtime_data = client
+    flow = GrokOAuthOptionsFlow()
+    flow.hass = hass
+    flow.handler = entry.entry_id
+    result = await flow.async_step_init()
+    options = result["data_schema"].schema[CONF_SELECTED_MODELS].config["options"]
+    assert "grok-4.7" in {item["value"] for item in options}
+    client.list_models.assert_awaited_once_with(refresh=True)

@@ -705,3 +705,25 @@ async def test_empty_stt_raises() -> None:
                 content_type="audio/wav",
                 language="en-US",
             )
+
+
+async def test_list_models_refreshes_instead_of_freezing() -> None:
+    """A new Grok release shows up on the next picker, not only after a reload."""
+    session = FakeSession(
+        [
+            FakeResp(200, {"data": [{"id": "grok-4.6", "created": 1}]}),
+            FakeResp(200, {"data": [{"id": "grok-4.6", "created": 1}, {"id": "grok-4.7", "created": 2}]}),
+        ]
+    )
+    client = _client()
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=session,
+    ), patch("custom_components.supergrok.client.asyncio.sleep", new=AsyncMock()):
+        assert await client.list_models() == ["grok-4.6"]
+        assert await client.list_models() == ["grok-4.6"]
+        assert await client.list_models(refresh=True) == ["grok-4.6", "grok-4.7"]
+        assert client.models_created["grok-4.7"] == 2
+        # A failed refresh keeps the last good list.
+        session.responses = [FakeResp(500, {"error": "down"})] * 8
+        assert await client.list_models(refresh=True) == ["grok-4.6", "grok-4.7"]

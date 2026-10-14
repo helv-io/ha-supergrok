@@ -149,9 +149,30 @@ DEFAULT_SELECTED_MODELS: tuple[str, ...] = (
 )
 
 
-def picker_options() -> list[dict[str, str]]:
-    """Return selector options for the multi-picker."""
-    return [
+def live_kind(model_id: str) -> Kind | None:
+    """Sort a live model id into a picker kind; None for ones we do not expose."""
+    if model_id in CATALOG_BY_ID:
+        return CATALOG_BY_ID[model_id].kind
+    lowered = model_id.lower()
+    if not lowered.startswith("grok"):
+        return None
+    if "imagine" in lowered:
+        return "image" if "video" not in lowered else None
+    if any(word in lowered for word in ("voice", "tts", "stt", "realtime", "embed", "video")):
+        return None
+    return "chat"
+
+
+def live_label(model_id: str) -> str:
+    """Readable label for a live id the catalog does not know, e.g. Grok 4.7."""
+    return " ".join(
+        part.capitalize() if part.isalpha() else part for part in model_id.split("-")
+    )
+
+
+def picker_options(extra: list[str] | tuple[str, ...] | None = None) -> list[dict[str, str]]:
+    """Return selector options for the multi-picker, plus live account models."""
+    options = [
         {
             "value": model.id,
             "label": f"{model.label}: {model.description}"
@@ -161,6 +182,12 @@ def picker_options() -> list[dict[str, str]]:
         for model in MODEL_CATALOG
         if REALTIME_ENABLED or model.kind != "realtime"
     ]
+    known = {item["value"] for item in options}
+    for model_id in extra or ():
+        if model_id and model_id not in known and live_kind(model_id) in ("chat", "image"):
+            options.append({"value": model_id, "label": live_label(model_id)})
+            known.add(model_id)
+    return options
 
 
 def without_withheld_models(selected: list[str] | tuple[str, ...]) -> list[str]:
@@ -172,7 +199,7 @@ def without_withheld_models(selected: list[str] | tuple[str, ...]) -> list[str]:
 
 def selected_of_kind(selected: list[str] | tuple[str, ...], kind: Kind) -> list[str]:
     """Return selected catalog ids of a given kind."""
-    return [item for item in selected if CATALOG_BY_ID.get(item) and CATALOG_BY_ID[item].kind == kind]
+    return [item for item in selected if live_kind(item) == kind]
 
 
 def has_voice(selected: list[str] | tuple[str, ...]) -> bool:
@@ -224,8 +251,8 @@ def _merge_selector_options(
     ]
     known = {item["value"] for item in options}
     for model_id in extra or ():
-        if model_id and model_id not in known:
-            options.append({"value": model_id, "label": model_id})
+        if model_id and model_id not in known and live_kind(model_id) == catalog_kind:
+            options.append({"value": model_id, "label": live_label(model_id)})
             known.add(model_id)
     return options
 

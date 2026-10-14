@@ -61,3 +61,24 @@ def test_build_initial_subentries_covers_chat_and_ai_task() -> None:
     assert subentries[0]["data"]["prompt"] == "Hello"
     assert subentries[1]["data"]["chat_model"] == "grok-4.5"
     assert subentries[2]["data"]["image_model"] == DEFAULT_IMAGE_MODEL
+
+
+def test_live_models_join_the_pickers() -> None:
+    """Models the account has, but the catalog does not, are offered by kind."""
+    from custom_components.supergrok.models import (
+        chat_model_options,
+        image_model_options,
+        picker_options,
+    )
+
+    live = ["grok-4.7", "grok-imagine-image-3", "grok-voice-x", "grok-imagine-video"]
+    chat = {item["value"]: item["label"] for item in chat_model_options(live)}
+    assert chat["grok-4.7"] == "Grok 4.7"
+    assert "grok-imagine-image-3" not in chat
+    assert "grok-voice-x" not in chat
+    image = {item["value"] for item in image_model_options(live)}
+    assert "grok-imagine-image-3" in image
+    assert "grok-imagine-video" not in image
+    picker = {item["value"] for item in picker_options(live)}
+    assert {"grok-4.7", "grok-imagine-image-3"} <= picker
+    assert "grok-voice-x" not in picker
