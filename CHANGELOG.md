@@ -6,6 +6,16 @@ The version is `version` in `custom_components/supergrok/manifest.json`. A relea
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-14
+
+### Changed
+
+- No model names are built in: pickers show **Grok Latest**, **Imagine Latest**, **Voice** and the models your account has
+- The last model list is saved, so **Grok Latest** keeps working when xAI cannot list models
+- **Imagine Latest** follows new Imagine releases, and agents on the old Imagine default move to it on update
+- First setup asks you to try again when the model list cannot be loaded, instead of guessing a model
+- A request on **Grok Latest** with no model list fails with a clear error instead of using a fixed model
+
 ## [0.7.0] - 2026-10-14
 
 ### Added

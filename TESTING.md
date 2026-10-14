@@ -18,8 +18,9 @@ Install this branch: copy `custom_components/supergrok` into `/config/custom_com
 
 ## B. Model picker and subentries
 
-- [ ] Default picker: Grok Latest + Voice + Imagine. Realtime is absent.
+- [ ] Default picker: Grok Latest + Voice + Imagine Latest, plus the account's live models. Realtime is absent.
 - [ ] Configure lists a Grok model released after the catalog was written. An old Grok 4.6 agent shows as Grok Latest after the update.
+- [ ] With xAI unreachable, first setup shows the model list error and works after retry. A loaded entry keeps answering from the saved list.
 - [ ] Voice-only: STT + TTS exist; no conversation agent and no AI Task invented.
 - [ ] Chat-only: conversation entity, no STT/TTS.
 - [ ] Add → Conversation: name, prompt, Control Home Assistant, model. A second agent is independent.
