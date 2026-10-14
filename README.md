@@ -21,7 +21,7 @@ You need Home Assistant 2026.8 or newer and a SuperGrok or X Premium+ subscripti
 1. Open this repository in HACS, download **SuperGrok OAuth**, restart Home Assistant.
 2. **Settings** > **Devices & services** > **Add integration** > **SuperGrok OAuth**.
 3. Open the address shown on any device and approve. Home Assistant continues on its own.
-4. Pick the chat models, Voice and Imagine to add.
+4. Pick what to add. **Grok Latest**, **Voice** and **Imagine Latest** are picked for you.
 5. **Settings** > **Voice assistants**: pick Grok Voice STT, a Grok conversation agent and Grok Voice TTS.
 
 Manual install: copy `custom_components/supergrok` to `/config/custom_components/supergrok`, then restart.
@@ -32,6 +32,7 @@ To upgrade, update in HACS and restart.
 
 | Feature | What it does |
 | --- | --- |
+| Models | **Grok Latest** and **Imagine Latest** follow new releases. Every model your account has is listed too |
 | Sign-in | Device code, or browser sign-in with a pasted address. Tokens refresh on their own |
 | Conversation | Assist agents, each with its own name, instructions, model and Control Home Assistant setting. Replies stream |
 | AI Task | `ai_task.generate_data`, plain or structured, with image attachments |
@@ -39,11 +40,23 @@ To upgrade, update in HACS and restart.
 | Voice | Speech-to-text and text-to-speech for Assist. Voices load from xAI |
 | Actions | `supergrok.generate_content` and `supergrok.generate_image` |
 
+## Models
+
+No model names are built in. Each model picker asks xAI for the models your account has when it opens, so new releases show up without an update.
+
+- **Grok Latest** uses the newest Grok chat model on your account. This is the default.
+- **Imagine Latest** uses the newest Imagine image model.
+- To stay on one model, pick it by name instead.
+
+The last model list is saved. If xAI cannot list models, pickers and the Latest choices use the saved list. During first setup there is no saved list yet, so the setup asks you to try again.
+
+Updating moves agents that still use the old default models to **Grok Latest** and **Imagine Latest**. Models you picked yourself stay.
+
 ## Conversation agents
 
 Open the integration > **Add conversation agent**. An agent has a name, instructions, Control Home Assistant, a chat model, maximum tokens and temperature. **Reconfigure** changes any of them.
 
-**Configure** on the integration changes which models, Voice and Imagine are added.
+**Configure** on the integration changes which models, Voice and Imagine are added. It lists the models your account has right now.
 
 ## Actions
 
@@ -96,6 +109,8 @@ An xAI API key does not work here. Sign in with the account that has the subscri
 | Sign-in fails, or chat or Voice answers 402 or 403 | The account needs SuperGrok or X Premium+. If it has one, turn on debug logging and open an issue with the log. |
 | The browser cannot reach `127.0.0.1` after sign-in | Expected. Copy the whole address and paste it into the form. |
 | `generate_content` says Home Assistant may not read a file | Move the file to `/config/www`, or add its folder to `allowlist_external_dirs` in `configuration.yaml` and restart. |
+| "Could not get the Grok model list" | xAI did not answer. Submit again during setup, or wait a moment and retry. Once a list has loaded, it is saved for next time. |
+| A new Grok model is missing | Close and reopen **Configure** or **Reconfigure**. The list refreshes every few minutes. |
 | "This SuperGrok account is already configured" | The account is already added. Remove that entry first to add it again. |
 
 Debug logging:
