@@ -21,6 +21,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import llm, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from .client import GrokClient
 from .const import (
     CONF_ACCOUNT_EMAIL,
     CONF_ACCOUNT_ID,
@@ -53,6 +54,7 @@ from .models import (
 )
 from .oauth import (
     GrokOAuthError,
+    OAuthTokens,
     account_unique_id,
     build_authorize_url,
     exchange_authorization_code,
@@ -64,7 +66,19 @@ from .oauth import (
 )
 
 
-def _models_schema(defaults: list[str] | None = None) -> vol.Schema:
+async def _live_models(client: Any) -> list[str]:
+    """Fetch the account's models now; the picker falls back to the catalog."""
+    if client is None or not hasattr(client, "list_models"):
+        return []
+    try:
+        return await client.list_models(refresh=True)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _models_schema(
+    defaults: list[str] | None = None, live: list[str] | None = None
+) -> vol.Schema:
     selected = without_withheld_models(defaults or list(DEFAULT_SELECTED_MODELS))
     return vol.Schema(
         {
@@ -73,7 +87,7 @@ def _models_schema(defaults: list[str] | None = None) -> vol.Schema:
                 default=selected,
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=picker_options(),
+                    options=picker_options(live),
                     multiple=True,
                     mode=selector.SelectSelectorMode.LIST,
                 )
@@ -287,7 +301,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
             if not selected:
                 return self.async_show_form(
                     step_id="models",
-                    data_schema=_models_schema([]),
+                    data_schema=_models_schema([], await self._async_live_models()),
                     errors={"base": "select_model"},
                 )
             title = (
@@ -314,7 +328,18 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
                 ),
             )
 
-        return self.async_show_form(step_id="models", data_schema=_models_schema())
+        return self.async_show_form(
+            step_id="models",
+            data_schema=_models_schema(live=await self._async_live_models()),
+        )
+
+    async def _async_live_models(self) -> list[str]:
+        """List models with the tokens from this login, before the entry exists."""
+        try:
+            client = GrokClient(self.hass, OAuthTokens.from_dict(dict(self._tokens or {})))
+        except Exception:  # noqa: BLE001
+            return []
+        return await _live_models(client)
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
         """Re-run SuperGrok login when the refresh token dies."""
@@ -359,12 +384,13 @@ class GrokOAuthOptionsFlow(OptionsFlow):
                 self.config_entry.data.get(CONF_SELECTED_MODELS, DEFAULT_SELECTED_MODELS),
             )
         )
+        client = getattr(self.config_entry, "runtime_data", None)
         if user_input is not None:
             selected = without_withheld_models(user_input.get(CONF_SELECTED_MODELS) or [])
             if not selected:
                 return self.async_show_form(
                     step_id="init",
-                    data_schema=_models_schema(current),
+                    data_schema=_models_schema(current, await _live_models(client)),
                     errors={"base": "select_model"},
                 )
             # The update listener reloads the entry once the data changes.
@@ -374,7 +400,9 @@ class GrokOAuthOptionsFlow(OptionsFlow):
             )
             return self.async_create_entry(title="", data={})
 
-        return self.async_show_form(step_id="init", data_schema=_models_schema(current))
+        return self.async_show_form(
+            step_id="init", data_schema=_models_schema(current, await _live_models(client))
+        )
 
 
 class GrokSubentryFlowHandler(ConfigSubentryFlow):
@@ -484,13 +512,7 @@ class GrokSubentryFlowHandler(ConfigSubentryFlow):
                 }
             )
 
-        live_models: list[str] = []
-        client = getattr(self._get_entry(), "runtime_data", None)
-        if client is not None and hasattr(client, "list_models"):
-            try:
-                live_models = await client.list_models()
-            except Exception:  # noqa: BLE001
-                live_models = []
+        live_models = await _live_models(getattr(self._get_entry(), "runtime_data", None))
 
         schema[
             vol.Required(

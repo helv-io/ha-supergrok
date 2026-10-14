@@ -91,6 +91,7 @@ MODEL_VOICE: Final = "voice"
 MODEL_REALTIME: Final = "realtime"
 
 DEFAULT_CHAT_MODEL: Final = "grok-4.6"
+MODELS_CACHE_SECONDS: Final = 300
 DEFAULT_IMAGE_MODEL: Final = "grok-imagine-image-2.0"
 DEFAULT_VOICE_MODEL: Final = "grok-voice-think-fast-2.0"
 DEFAULT_REALTIME_MODEL: Final = "grok-voice-latest"

@@ -28,6 +28,7 @@ from .const import (
     LOGGER,
     MAX_STATUS_RETRIES,
     MEDIA_API_BASES,
+    MODELS_CACHE_SECONDS,
     REALTIME_WS_URLS,
     RETRY_STATUS,
     stt_format_language,
@@ -97,6 +98,8 @@ class GrokClient:
         self._client_identifier = CLIENT_IDENTIFIER
         self._client_version = _integration_version()
         self._models_cache: list[str] | None = None
+        self._models_fetched = 0.0
+        self.models_created: dict[str, int] = {}
         self.recent_events: deque[str] = deque(maxlen=20)
 
     def _note(self, message: str) -> None:
@@ -352,9 +355,14 @@ class GrokClient:
             f"{last_body or last_error}"
         )
 
-    async def list_models(self) -> list[str]:
-        """Best-effort model catalog from the live account."""
-        if self._models_cache is not None:
+    async def list_models(self, *, refresh: bool = False) -> list[str]:
+        """Best-effort model catalog from the live account.
+
+        Cached briefly so a picker opened twice does not refetch, but never for
+        the life of the entry: new Grok releases must show up without a reload.
+        """
+        fresh = time.monotonic() - self._models_fetched < MODELS_CACHE_SECONDS
+        if self._models_cache is not None and fresh and not refresh:
             return list(self._models_cache)
         try:
             payload = await self._request(
@@ -362,17 +370,22 @@ class GrokClient:
             )
         except HomeAssistantError as err:
             LOGGER.debug("Could not list Grok models: %s", err)
-            return []
+            return list(self._models_cache or [])
         items = payload.get("data") if isinstance(payload, dict) else payload
         if not isinstance(items, list):
-            return []
+            return list(self._models_cache or [])
         ids: list[str] = []
+        created: dict[str, int] = {}
         for item in items:
             if isinstance(item, str):
                 ids.append(item)
             elif isinstance(item, dict) and item.get("id"):
                 ids.append(str(item["id"]))
+                if isinstance(item.get("created"), int):
+                    created[str(item["id"])] = item["created"]
         self._models_cache = ids
+        self.models_created = created
+        self._models_fetched = time.monotonic()
         return list(ids)
 
     def _chat_body(
