@@ -28,4 +28,5 @@ What it is, in one wording used in the README, the repository description and th
 
 - The README is for user-visible things: install, features, setup, actions, troubleshooting. Internals go in the code or TESTING.md.
 - CHANGELOG lines are user-visible changes, one line each, no final period, no function or class names.
+- Every user-facing change updates the README and CHANGELOG in the same release. Docs never name specific Grok models; say Grok Latest or Imagine Latest.
 - The version is `version` in `manifest.json`. Pushing the tag creates the GitHub Release from that CHANGELOG section and attaches `supergrok.zip`. TESTING.md is the release checklist.
