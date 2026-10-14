@@ -18,8 +18,6 @@ from .const import (
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CHAT_MODEL,
     DEFAULT_IMAGE_MODEL,
-    DEFAULT_REALTIME_MODEL,
-    DEFAULT_VOICE_MODEL,
     MODEL_IMAGE_LATEST,
     MODEL_LATEST,
     MODEL_REALTIME,
@@ -171,17 +169,6 @@ def first_image_model(selected: list[str] | tuple[str, ...]) -> str | None:
     models = image_models(selected)
     return models[0] if models else None
 
-
-def resolve_realtime_model(selected: list[str] | tuple[str, ...]) -> str:
-    """Return the realtime model slug to use."""
-    if has_realtime(selected):
-        return DEFAULT_REALTIME_MODEL
-    return DEFAULT_VOICE_MODEL
-
-
-def resolve_voice_model(selected: list[str] | tuple[str, ...]) -> str:
-    """Return the voice-agent model slug."""
-    return DEFAULT_VOICE_MODEL
 
 
 def _merge_selector_options(

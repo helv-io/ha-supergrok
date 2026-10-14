@@ -64,7 +64,7 @@ class GrokTTSEntity(TextToSpeechEntity):
             identifiers={(DOMAIN, self._attr_unique_id)},
             name=DEFAULT_TTS_NAME,
             manufacturer="xAI",
-            model="grok-voice-tts",
+            model="Text-to-speech",
             entry_type=dr.DeviceEntryType.SERVICE,
         )
 

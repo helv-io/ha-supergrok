@@ -44,7 +44,7 @@ generate_image:
     model:
       name: Model
       required: false
-      example: grok-imagine-image-2.0
+      example: imagine-latest
       selector:
         text:
     n:
