@@ -90,7 +90,14 @@ SUBENTRY_TYPE_AI_TASK: Final = "ai_task_data"
 MODEL_VOICE: Final = "voice"
 MODEL_REALTIME: Final = "realtime"
 
-DEFAULT_CHAT_MODEL: Final = "grok-4.6"
+# "latest" follows new Grok releases; it is resolved against /models per request.
+MODEL_LATEST: Final = "latest"
+DEFAULT_CHAT_MODEL: Final = MODEL_LATEST
+# Used for "latest" when /models is unreachable.
+FALLBACK_CHAT_MODEL: Final = "grok-4.7"
+# Old installs saved the then-default model; migration moves it to "latest".
+LEGACY_DEFAULT_CHAT_MODEL: Final = "grok-4.6"
+LEGACY_DEFAULT_TITLE: Final = "Grok 4.6"
 MODELS_CACHE_SECONDS: Final = 300
 DEFAULT_IMAGE_MODEL: Final = "grok-imagine-image-2.0"
 DEFAULT_VOICE_MODEL: Final = "grok-voice-think-fast-2.0"

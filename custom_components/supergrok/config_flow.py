@@ -101,6 +101,7 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
 
     DOMAIN = DOMAIN
     VERSION = 2
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         self._tokens: dict[str, Any] | None = None

@@ -727,3 +727,31 @@ async def test_list_models_refreshes_instead_of_freezing() -> None:
         # A failed refresh keeps the last good list.
         session.responses = [FakeResp(500, {"error": "down"})] * 8
         assert await client.list_models(refresh=True) == ["grok-4.6", "grok-4.7"]
+
+
+def test_newest_chat_model_picks_the_frontier() -> None:
+    """Plain grok-N.M ids only; release time first, then version."""
+    from custom_components.supergrok.client import newest_chat_model
+    from custom_components.supergrok.const import FALLBACK_CHAT_MODEL
+
+    ids = ["grok-4.6", "grok-4.7", "grok-4-fast", "grok-4.20-0309-reasoning", "grok-build-0.1"]
+    assert newest_chat_model(ids) == "grok-4.7"
+    assert newest_chat_model(["grok-4.20", "grok-4.7"], {"grok-4.20": 1, "grok-4.7": 2}) == "grok-4.7"
+    assert newest_chat_model([]) == FALLBACK_CHAT_MODEL
+
+
+async def test_chat_resolves_latest() -> None:
+    """A "latest" agent sends the newest model id to the API."""
+    session = FakeSession(
+        [
+            FakeResp(200, {"data": [{"id": "grok-4.6"}, {"id": "grok-4.7"}]}),
+            FakeResp(200, {"choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}]}),
+        ]
+    )
+    client = _client()
+    with patch(
+        "custom_components.supergrok.client.async_get_clientsession",
+        return_value=session,
+    ):
+        await client.chat(model="latest", messages=[{"role": "user", "content": "hi"}])
+    assert session.calls[-1][2]["json"]["model"] == "grok-4.7"

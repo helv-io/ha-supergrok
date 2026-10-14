@@ -21,6 +21,7 @@ from .const import (
     DEFAULT_IMAGE_MODEL,
     DEFAULT_REALTIME_MODEL,
     DEFAULT_VOICE_MODEL,
+    MODEL_LATEST,
     MODEL_REALTIME,
     MODEL_VOICE,
     REALTIME_ENABLED,
@@ -47,10 +48,24 @@ class GrokModel:
 # hidden while REALTIME_ENABLED is False.
 MODEL_CATALOG: tuple[GrokModel, ...] = (
     GrokModel(
-        DEFAULT_CHAT_MODEL,
+        MODEL_LATEST,
+        "Grok Latest",
+        "chat",
+        "Follows new releases",
+        ("conversation", "ai_task"),
+    ),
+    GrokModel(
+        "grok-4.7",
+        "Grok 4.7",
+        "chat",
+        "",
+        ("conversation", "ai_task"),
+    ),
+    GrokModel(
+        "grok-4.6",
         "Grok 4.6",
         "chat",
-        "Default",
+        "",
         ("conversation", "ai_task"),
     ),
     GrokModel(
