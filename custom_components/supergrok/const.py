@@ -95,11 +95,13 @@ MODEL_LATEST: Final = "latest"
 DEFAULT_CHAT_MODEL: Final = MODEL_LATEST
 NO_MODEL_LIST: Final = "Could not get the Grok model list. Try again in a moment."
 MODELS_STORE_VERSION: Final = 1
-# Old installs saved the then-default model; migration moves it to "latest".
+# Old installs saved the then-default ids; migration moves them to Latest.
+# These two values are only matched against stored data, never sent.
 LEGACY_DEFAULT_CHAT_MODEL: Final = "grok-4.6"
-LEGACY_DEFAULT_TITLE: Final = "Grok 4.6"
+LEGACY_DEFAULT_IMAGE_MODEL: Final = "grok-imagine-image-2.0"
 MODELS_CACHE_SECONDS: Final = 300
-DEFAULT_IMAGE_MODEL: Final = "grok-imagine-image-2.0"
+MODEL_IMAGE_LATEST: Final = "imagine-latest"
+DEFAULT_IMAGE_MODEL: Final = MODEL_IMAGE_LATEST
 DEFAULT_VOICE_MODEL: Final = "grok-voice-think-fast-2.0"
 DEFAULT_REALTIME_MODEL: Final = "grok-voice-latest"
 DEFAULT_TTS_VOICE: Final = "eve"

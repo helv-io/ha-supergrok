@@ -82,3 +82,11 @@ def test_live_models_join_the_pickers() -> None:
     picker = {item["value"] for item in picker_options(live)}
     assert {"grok-4.7", "grok-imagine-image-3"} <= picker
     assert "grok-voice-x" not in picker
+
+
+def test_no_model_ids_ship_in_the_picker() -> None:
+    """Without a live list the picker only has Latest entries and Voice."""
+    from custom_components.supergrok.models import picker_options
+
+    values = {item["value"] for item in picker_options()}
+    assert values == {"latest", "voice", "imagine-latest"}

@@ -122,15 +122,24 @@ async def test_migrate_old_default_to_latest(hass: HomeAssistant) -> None:
                 "title": "Kitchen",
                 "unique_id": None,
             },
+            {
+                "data": {CONF_CHAT_MODEL: "grok-4.6", "image_model": "grok-imagine-image-2.0"},
+                "subentry_type": SUBENTRY_TYPE_AI_TASK,
+                "title": "Grok AI Task",
+                "unique_id": None,
+            },
         ],
     )
     entry.add_to_hass(hass)
 
     assert await async_migrate_entry(hass, entry)
-    assert entry.minor_version == 2
+    assert entry.minor_version == 3
     assert entry.data[CONF_SELECTED_MODELS] == ["latest", "grok-4.5", "voice"]
     first, second = entry.get_subentries_of_type(SUBENTRY_TYPE_CONVERSATION)
     assert first.data == {CONF_CHAT_MODEL: "latest", CONF_PROMPT: "Keep me"}
     assert first.title == "Grok Latest"
     assert second.data[CONF_CHAT_MODEL] == "grok-4.5"
     assert second.title == "Kitchen"
+    (task,) = entry.get_subentries_of_type(SUBENTRY_TYPE_AI_TASK)
+    assert task.data == {CONF_CHAT_MODEL: "latest", "image_model": "imagine-latest"}
+    assert task.title == "Grok AI Task"

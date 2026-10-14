@@ -17,10 +17,10 @@ from .const import (
     CONF_SELECTED_MODELS,
     DEFAULT_AI_TASK_NAME,
     DEFAULT_CHAT_MODEL,
-    DEFAULT_CONVERSATION_NAME,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_REALTIME_MODEL,
     DEFAULT_VOICE_MODEL,
+    MODEL_IMAGE_LATEST,
     MODEL_LATEST,
     MODEL_REALTIME,
     MODEL_VOICE,
@@ -43,78 +43,15 @@ class GrokModel:
     ha_platforms: tuple[str, ...]
 
 
-# Picker catalog. Chat models become conversation and AI Task entities, Voice
-# becomes STT and TTS, Imagine models go to AI Task. Realtime stays here,
-# hidden while REALTIME_ENABLED is False.
+# Fixed picker entries. No model ids live here: Grok Latest and Imagine
+# Latest resolve from the account's /models list, and the pickers add every
+# live model next to them. Realtime stays hidden while REALTIME_ENABLED is False.
 MODEL_CATALOG: tuple[GrokModel, ...] = (
     GrokModel(
         MODEL_LATEST,
         "Grok Latest",
         "chat",
         "Follows new releases",
-        ("conversation", "ai_task"),
-    ),
-    GrokModel(
-        "grok-4.7",
-        "Grok 4.7",
-        "chat",
-        "",
-        ("conversation", "ai_task"),
-    ),
-    GrokModel(
-        "grok-4.6",
-        "Grok 4.6",
-        "chat",
-        "",
-        ("conversation", "ai_task"),
-    ),
-    GrokModel(
-        "grok-4.5",
-        "Grok 4.5",
-        "chat",
-        "",
-        ("conversation", "ai_task"),
-    ),
-    GrokModel(
-        "grok-4.3",
-        "Grok 4.3",
-        "chat",
-        "",
-        ("conversation", "ai_task"),
-    ),
-    GrokModel(
-        "grok-4",
-        "Grok 4",
-        "chat",
-        "",
-        ("conversation", "ai_task"),
-    ),
-    GrokModel(
-        "grok-4-fast",
-        "Grok 4 Fast",
-        "chat",
-        "Faster",
-        ("conversation", "ai_task"),
-    ),
-    GrokModel(
-        "grok-build-0.1",
-        "Grok Build 0.1",
-        "chat",
-        "Coding",
-        ("conversation", "ai_task"),
-    ),
-    GrokModel(
-        "grok-4.20-0309-reasoning",
-        "Grok 4.20 Reasoning",
-        "chat",
-        "",
-        ("conversation", "ai_task"),
-    ),
-    GrokModel(
-        "grok-4.20-0309-non-reasoning",
-        "Grok 4.20 Non-reasoning",
-        "chat",
-        "",
         ("conversation", "ai_task"),
     ),
     GrokModel(
@@ -132,24 +69,10 @@ MODEL_CATALOG: tuple[GrokModel, ...] = (
         ("conversation",),
     ),
     GrokModel(
-        DEFAULT_IMAGE_MODEL,
-        "Grok Imagine 2.0",
+        MODEL_IMAGE_LATEST,
+        "Imagine Latest",
         "image",
-        "Images",
-        ("ai_task",),
-    ),
-    GrokModel(
-        "grok-imagine-image",
-        "Grok Imagine",
-        "image",
-        "Faster images",
-        ("ai_task",),
-    ),
-    GrokModel(
-        "grok-imagine-image-quality",
-        "Grok Imagine Quality",
-        "image",
-        "Higher quality images",
+        "Follows new releases",
         ("ai_task",),
     ),
 )
@@ -183,6 +106,12 @@ def live_label(model_id: str) -> str:
     return " ".join(
         part.capitalize() if part.isalpha() else part for part in model_id.split("-")
     )
+
+
+def model_label(model_id: str) -> str:
+    """Picker label for a fixed entry or a live model id."""
+    catalog = CATALOG_BY_ID.get(model_id)
+    return catalog.label if catalog else live_label(model_id)
 
 
 def picker_options(extra: list[str] | tuple[str, ...] | None = None) -> list[dict[str, str]]:
@@ -349,14 +278,13 @@ def build_initial_subentries(
     image = first_image_model(selected)
     subentries: list[dict[str, object]] = []
     for model in chats:
-        catalog = CATALOG_BY_ID.get(model)
         subentries.append(
             {
                 "subentry_type": SUBENTRY_TYPE_CONVERSATION,
                 "data": conversation_subentry_data(
                     model, prompt=prompt, llm_apis=llm_apis
                 ),
-                "title": catalog.label if catalog else DEFAULT_CONVERSATION_NAME,
+                "title": model_label(model),
                 "unique_id": None,
             }
         )

@@ -50,8 +50,9 @@ from .const import (
     DEFAULT_REALTIME_MODEL,
     DOMAIN,
     LEGACY_DEFAULT_CHAT_MODEL,
-    LEGACY_DEFAULT_TITLE,
+    LEGACY_DEFAULT_IMAGE_MODEL,
     LOGGER,
+    MODEL_IMAGE_LATEST,
     MODEL_LATEST,
     MODELS_STORE_VERSION,
     REALTIME_ENABLED,
@@ -62,12 +63,12 @@ from .const import (
     SUBENTRY_TYPE_CONVERSATION,
 )
 from .models import (
-    CATALOG_BY_ID,
     build_initial_subentries,
     chat_models,
     first_image_model,
     has_realtime,
     has_voice,
+    model_label,
 )
 from .oauth import OAuthTokens, revoke_tokens
 
@@ -361,21 +362,25 @@ async def async_migrate_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bo
         _migrate_v1_subentries(hass, entry)
         hass.config_entries.async_update_entry(entry, version=2)
         LOGGER.info("Migrated SuperGrok OAuth entry %s to conversation subentries", entry.entry_id)
-    if entry.version == 2 and entry.minor_version < 2:
+    if entry.version == 2 and entry.minor_version < 3:
         _migrate_to_latest(hass, entry)
-        hass.config_entries.async_update_entry(entry, minor_version=2)
+        hass.config_entries.async_update_entry(entry, minor_version=3)
         LOGGER.info("SuperGrok OAuth entry %s now follows the latest Grok", entry.entry_id)
     return True
 
 
 def _migrate_to_latest(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Swap the old frozen default model for "latest" so new releases apply.
+    """Swap the old frozen setup defaults for Latest so new releases apply.
 
-    Only the old default moves; any other model the user picked stays.
+    Only the old defaults move; any other model the user picked stays.
     """
+    legacy = {
+        LEGACY_DEFAULT_CHAT_MODEL: MODEL_LATEST,
+        LEGACY_DEFAULT_IMAGE_MODEL: MODEL_IMAGE_LATEST,
+    }
 
     def swap(model: Any) -> Any:
-        return MODEL_LATEST if model == LEGACY_DEFAULT_CHAT_MODEL else model
+        return legacy.get(model, model) if isinstance(model, str) else model
 
     data = dict(entry.data)
     if isinstance(data.get(CONF_SELECTED_MODELS), list):
@@ -384,24 +389,23 @@ def _migrate_to_latest(hass: HomeAssistant, entry: ConfigEntry) -> None:
             if swap(model) not in swapped:
                 swapped.append(swap(model))
         data[CONF_SELECTED_MODELS] = swapped
-    if CONF_CHAT_MODEL in data:
-        data[CONF_CHAT_MODEL] = swap(data[CONF_CHAT_MODEL])
+    for key in (CONF_CHAT_MODEL, CONF_IMAGE_MODEL):
+        if key in data:
+            data[key] = swap(data[key])
     if data != dict(entry.data):
         hass.config_entries.async_update_entry(entry, data=data)
 
     for subentry in list(entry.subentries.values()):
-        model = subentry.data.get(CONF_CHAT_MODEL)
-        if model != LEGACY_DEFAULT_CHAT_MODEL:
+        data = dict(subentry.data)
+        for key in (CONF_CHAT_MODEL, CONF_IMAGE_MODEL):
+            if key in data:
+                data[key] = swap(data[key])
+        if data == dict(subentry.data):
             continue
         title = subentry.title
-        if title == LEGACY_DEFAULT_TITLE:
-            title = CATALOG_BY_ID[MODEL_LATEST].label
-        hass.config_entries.async_update_subentry(
-            entry,
-            subentry,
-            data={**subentry.data, CONF_CHAT_MODEL: MODEL_LATEST},
-            title=title,
-        )
+        if title == model_label(LEGACY_DEFAULT_CHAT_MODEL):
+            title = model_label(MODEL_LATEST)
+        hass.config_entries.async_update_subentry(entry, subentry, data=data, title=title)
 
 
 def _migrate_v1_subentries(hass: HomeAssistant, entry: ConfigEntry) -> None:
