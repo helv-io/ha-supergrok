@@ -9,6 +9,7 @@
   agent-checks version
 """
 import json, os, subprocess, sys
+sys.dont_write_bytecode = True  # a vendored copy must stay byte for byte what was vendored
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "checks"))
 import lib  # noqa: E402
