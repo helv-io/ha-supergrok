@@ -1,0 +1,15 @@
+# Downloads agent-checks at one pinned commit and exports its path as AGENT_CHECKS. The pin lives only here.
+# Move it with tools/sync-pins from a checkout of https://git.helv.io/helvio/agent-checks (never by hand).
+name: Set up agent-checks
+description: Fetch the shared checks at the pinned commit
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        AGENT_CHECKS_REF: 9e29dde9b553e4bee5c4c2f0405e901a29d18f14
+      run: |
+        git clone -q https://git.helv.io/helvio/agent-checks.git "$RUNNER_TEMP/agent-checks"
+        git -C "$RUNNER_TEMP/agent-checks" checkout -q "$AGENT_CHECKS_REF"
+        test "$(git -C "$RUNNER_TEMP/agent-checks" rev-parse HEAD)" = "$AGENT_CHECKS_REF"
+        echo "AGENT_CHECKS=$RUNNER_TEMP/agent-checks/bin/agent-checks" >> "$GITHUB_ENV"
