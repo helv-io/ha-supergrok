@@ -1,4 +1,4 @@
-# Settings for the shared checks: https://git.helv.io/helvio/agent-checks
+# Settings for the shared checks (the pinned copy is in .agent-checks/).
 [docs]
 user-facing = "^custom_components/"
 require = ["README.md", "CHANGELOG.md"]
@@ -13,10 +13,6 @@ hashes = [
   "befa156f0283eb0062beb9b86e16a413e1cf8c5135e5518d5c4fa321ce0c7b6b",
   "ae50ad81a2d4006e372c0bd3220f24c377345455d0e980c3f0d94f0e5faf2561",
 ]
-[[private.allow]]
-path = "^\\.github/(workflows|actions)/"
-why = "workflows download the shared checks from git.helv.io"
-
 [[release.version]]
 file = "custom_components/supergrok/manifest.json"
 pattern = '"version": "([^"]+)"'

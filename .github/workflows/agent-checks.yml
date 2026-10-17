@@ -1,4 +1,4 @@
-# The shared agent-checks job. Set the checkout version your repo uses; the pin is in .github/actions/setup-agent-checks.
+# The shared agent-checks job. Set the checkout version your repo uses. The checks themselves are the pinned copy in .agent-checks/.
 name: agent-checks
 on:
   push:
@@ -17,6 +17,5 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-agent-checks
       - name: Run the checks
-        run: python3 "$AGENT_CHECKS" ci
+        run: python3 .agent-checks/bin/agent-checks ci

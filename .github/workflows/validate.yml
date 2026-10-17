@@ -33,7 +33,6 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-agent-checks
-      - run: python3 "$AGENT_CHECKS" nightly-alert "${{ contains(needs.*.result, 'failure') && 'fail' || 'ok' }}"
+      - run: python3 .agent-checks/bin/agent-checks nightly-alert "${{ contains(needs.*.result, 'failure') && 'fail' || 'ok' }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
