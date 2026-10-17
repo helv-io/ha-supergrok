@@ -19,5 +19,20 @@ jobs:
         run: pip install -r requirements_test.txt ruff
       - name: Ruff
         run: ruff check custom_components tests
-      - name: Run tests
-        run: pytest -q
+      - uses: ./.github/actions/setup-agent-checks
+      - name: Run tests (a skipped test fails the run)
+        run: python3 "$AGENT_CHECKS" no-skips -- pytest -q -rs
+
+  alert:
+    name: Open an issue when the nightly run fails
+    if: ${{ always() && github.event_name == 'schedule' }}
+    needs: [pytest]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-agent-checks
+      - run: python3 "$AGENT_CHECKS" nightly-alert "${{ contains(needs.*.result, 'failure') && 'fail' || 'ok' }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

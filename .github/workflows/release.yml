@@ -9,7 +9,16 @@ permissions:
   contents: write
 
 jobs:
+  gate:
+    name: Version matches the tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-agent-checks
+      - run: python3 "$AGENT_CHECKS" release-version "$GITHUB_REF_NAME"
+
   release:
+    needs: gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -85,3 +94,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ github.ref_name }}" supergrok.zip --clobber
+
+  verify:
+    name: Release page has its file
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-agent-checks
+      - run: python3 "$AGENT_CHECKS" release-assets "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" supergrok.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
