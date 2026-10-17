@@ -323,7 +323,7 @@ def test_coerce_leaves_non_numeric_strings_alone() -> None:
         },
         "required": ["child_id"],
     }
-    original = {"child_id": "Arthur", "wet": "yes", "notes": "1"}
+    original = {"child_id": "Alex", "wet": "yes", "notes": "1"}
     assert coerce_arguments_to_schema(schema, original) == original
     assert coerce_arguments_to_schema(schema, {"child_id": "1.5"}) == {"child_id": "1.5"}
     assert coerce_arguments_to_schema(schema, {}) == {}

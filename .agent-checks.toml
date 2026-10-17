@@ -8,14 +8,13 @@ allow-emails = []
 
 [private]
 patterns = ['helv\.io']
-# Names, as hashes (agent-checks private-hash <name>).
+# Names of people close to the owner, as hashes (agent-checks private-hash <name>).
 hashes = [
   "befa156f0283eb0062beb9b86e16a413e1cf8c5135e5518d5c4fa321ce0c7b6b",
   "ae50ad81a2d4006e372c0bd3220f24c377345455d0e980c3f0d94f0e5faf2561",
-  "54752297ac8383b782cd8def81a29031e3217f2308b5dab242edcd776b9c3509",
 ]
 [[private.allow]]
-path = "^\\.github/workflows/"
+path = "^\\.github/(workflows|actions)/"
 why = "workflows download the shared checks from git.helv.io"
 
 [[release.version]]

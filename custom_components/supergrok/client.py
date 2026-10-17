@@ -1060,7 +1060,7 @@ def newest_chat_model(
     return max(candidates, key=rank)
 
 
-_IMAGE_ID = re.compile(r"^grok-imagine-image")
+_IMAGE_ID = re.compile(r"^grok-imagine-image")  # model-id-ok: name pattern for the provider's image models, not a model id until 2027-04-30
 
 
 def newest_image_model(
@@ -1073,7 +1073,7 @@ def newest_image_model(
         return None
     # Tagged ids such as -quality or -fast are variants, not the main line.
     main = [
-        item for item in candidates if re.fullmatch(r"grok-imagine-image(-[\d.]+)?", item)
+        item for item in candidates if re.fullmatch(r"grok-imagine-image(-[\d.]+)?", item)  # model-id-ok: name pattern for the provider's image models until 2027-04-30
     ] or candidates
     return max(main, key=lambda item: (created.get(item, 0), item))
 

@@ -97,8 +97,8 @@ NO_MODEL_LIST: Final = "Could not get the Grok model list. Try again in a moment
 MODELS_STORE_VERSION: Final = 1
 # Old installs saved the then-default ids; migration moves them to Latest.
 # These two values are only matched against stored data, never sent.
-LEGACY_DEFAULT_CHAT_MODEL: Final = "grok-4.6"
-LEGACY_DEFAULT_IMAGE_MODEL: Final = "grok-imagine-image-2.0"
+LEGACY_DEFAULT_CHAT_MODEL: Final = "grok-4.6"  # model-id-ok: matched only against stored data until 2027-04-30
+LEGACY_DEFAULT_IMAGE_MODEL: Final = "grok-imagine-image-2.0"  # model-id-ok: matched only against stored data until 2027-04-30
 MODELS_CACHE_SECONDS: Final = 300
 MODEL_IMAGE_LATEST: Final = "imagine-latest"
 DEFAULT_IMAGE_MODEL: Final = MODEL_IMAGE_LATEST
