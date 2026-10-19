@@ -61,7 +61,7 @@ Install this branch: copy `custom_components/supergrok` into `/config/custom_com
 ## F. Auth durability
 
 - [ ] Restart HA: session still works.
-- [ ] Diagnostics: no access/refresh/id token, no email.
+- [ ] Diagnostics: no access/refresh/id token, no email, no name, no account id.
 - [ ] Remove the integration: re-add requires a new login (refresh token revoked). HA does not get stuck if revoke 4xxs.
 - [ ] Reauth with the same account succeeds; a different account → `wrong_account`.
 

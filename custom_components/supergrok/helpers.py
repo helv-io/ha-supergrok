@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import base64
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from pathlib import Path
 from typing import Any
 
 from homeassistant.components import conversation
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 from homeassistant.helpers.json import json_dumps
@@ -52,7 +53,7 @@ def format_tools(llm_api: llm.APIInstance) -> list[dict[str, Any]]:
 
 
 def _image_data_url(path: Path, mime_type: str | None) -> str:
-    """Read an image file into a data URL. Caller must allow the path."""
+    """Read an image file into a data URL. Run this in the executor."""
     if not path.exists():
         raise HomeAssistantError(f"`{path}` does not exist")
     mime = mime_type or "image/jpeg"
@@ -62,31 +63,65 @@ def _image_data_url(path: Path, mime_type: str | None) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
-def _user_content_with_attachments(content: conversation.UserContent) -> dict[str, Any]:
-    """Build an OpenAI-style user message, including image attachments."""
+def _attachment_specs(chat_log: conversation.ChatLog) -> list[tuple[str, str | None]]:
+    """Unique attachment paths on this request, in first-seen order."""
+    specs: list[tuple[str, str | None]] = []
+    seen: set[str] = set()
+    for content in chat_log.content:
+        if not isinstance(content, conversation.UserContent) or not content.attachments:
+            continue
+        for attachment in content.attachments:
+            path = str(attachment.path)
+            if path in seen:
+                continue
+            seen.add(path)
+            specs.append((path, attachment.mime_type))
+    return specs
+
+
+def _read_attachment_data_urls(specs: list[tuple[str, str | None]]) -> dict[str, str]:
+    """Read image files into data URLs. Must not run on the event loop."""
+    return {path: _image_data_url(Path(path), mime) for path, mime in specs}
+
+
+async def _async_load_attachment_urls(
+    hass: HomeAssistant, chat_log: conversation.ChatLog
+) -> dict[str, str]:
+    """Read every image attachment once per request, off the event loop."""
+    specs = _attachment_specs(chat_log)
+    if not specs:
+        return {}
+    return await hass.async_add_executor_job(_read_attachment_data_urls, specs)
+
+
+def _user_content_with_attachments(
+    content: conversation.UserContent, attachment_urls: Mapping[str, str]
+) -> dict[str, Any]:
+    """Build an OpenAI-style user message from data URLs already read off the loop."""
     text = content.content or ""
-    attachments = getattr(content, "attachments", None) or ()
+    attachments = content.attachments or ()
     if not attachments:
         return {"role": "user", "content": text}
     parts: list[dict[str, Any]] = []
     if text:
         parts.append({"type": "text", "text": text})
     for attachment in attachments:
-        path = Path(attachment.path)
-        mime = getattr(attachment, "mime_type", None)
-        parts.append(
-            {
-                "type": "image_url",
-                "image_url": {"url": _image_data_url(path, mime)},
-            }
-        )
+        path = str(attachment.path)
+        url = attachment_urls.get(path)
+        if url is None:
+            raise HomeAssistantError(f"`{path}` was not loaded")
+        parts.append({"type": "image_url", "image_url": {"url": url}})
     if not parts:
         parts.append({"type": "text", "text": text or " "})
     return {"role": "user", "content": parts}
 
 
-def chat_log_to_messages(chat_log: conversation.ChatLog) -> list[dict[str, Any]]:
+def chat_log_to_messages(
+    chat_log: conversation.ChatLog,
+    attachment_urls: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
     """Convert a Home Assistant chat log to chat-completion messages."""
+    urls = attachment_urls or {}
     messages: list[dict[str, Any]] = []
 
     for content in chat_log.content:
@@ -119,7 +154,7 @@ def chat_log_to_messages(chat_log: conversation.ChatLog) -> list[dict[str, Any]]
             continue
 
         if isinstance(content, conversation.UserContent):
-            messages.append(_user_content_with_attachments(content))
+            messages.append(_user_content_with_attachments(content, urls))
             continue
 
         if content.content:
@@ -228,9 +263,12 @@ async def async_run_chat_log(
     response_format: dict[str, Any] | None = None,
 ) -> None:
     """Drive a chat log to an assistant final answer, executing HA tools."""
+    # Camera snapshots and media files are read once, before the tool loop.
+    # Later iterations reuse those data URLs and do not touch the disk again.
+    attachment_urls = await _async_load_attachment_urls(client.hass, chat_log)
     last_had_tools = False
     for iteration in range(MAX_TOOL_ITERATIONS):
-        messages = chat_log_to_messages(chat_log)
+        messages = chat_log_to_messages(chat_log, attachment_urls)
         tools = format_tools(chat_log.llm_api) if chat_log.llm_api else None
         sources = _tool_sources_by_name(chat_log.llm_api)
         force_final = last_had_tools and iteration == MAX_TOOL_ITERATIONS - 1

@@ -62,11 +62,12 @@ async def loaded(hass: HomeAssistant):
     with (
         patch.object(hass.config_entries, "async_forward_entry_setups", AsyncMock()),
         patch(
-            "custom_components.supergrok.async_get_loaded_integration"
+            "custom_components.supergrok.client.async_get_loaded_integration"
         ) as integration,
     ):
         integration.return_value.version = "test"
         assert await async_setup_entry(hass, entry)
+    assert entry.runtime_data._client_version == "test"
     entry.mock_state(hass, ConfigEntryState.LOADED)
     with patch.object(hass.config_entries, "async_reload", AsyncMock()) as reload:
         yield entry, reload

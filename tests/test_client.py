@@ -11,6 +11,7 @@ from homeassistant.exceptions import HomeAssistantError
 from custom_components.supergrok.client import GrokClient
 from custom_components.supergrok.const import (
     CLIENT_IDENTIFIER,
+    CLIENT_VERSION_FALLBACK,
     MEDIA_API_BASES,
     STT_FORMAT_LANGUAGES,
     STT_HA_LANGUAGES,
@@ -70,6 +71,23 @@ class FakeSession:
 
 def _client():
     return GrokClient(MagicMock(), TOKENS)
+
+
+def test_client_version_is_passed_in_and_manifest_is_not_read(monkeypatch) -> None:
+    """The client advertises the version it was given and does not open manifest.json."""
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("manifest.json was read")
+
+    monkeypatch.setattr("pathlib.Path.read_text", explode)
+    monkeypatch.setattr("pathlib.Path.read_bytes", explode)
+    client = GrokClient(MagicMock(), TOKENS, version="9.9.9")
+    assert client._client_version == "9.9.9"
+    headers = client._headers(base="https://cli-chat-proxy.grok.com/v1")
+    assert headers["x-grok-client-version"] == "9.9.9"
+
+    fallback = GrokClient(MagicMock(), TOKENS)
+    assert fallback._client_version == CLIENT_VERSION_FALLBACK
 
 
 async def test_chat_falls_back_from_402_to_second_host() -> None:

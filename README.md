@@ -113,6 +113,8 @@ An xAI API key does not work here. Sign in with the account that has the subscri
 | A new Grok model is missing | Close and reopen **Configure** or **Reconfigure**. The list refreshes every few minutes. |
 | "This SuperGrok account is already configured" | The account is already added. Remove that entry first to add it again. |
 
+Diagnostics from **Settings** > **Devices & services** > **SuperGrok OAuth** leave out tokens, email, name and the account id.
+
 Debug logging:
 
 ```yaml
