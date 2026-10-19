@@ -38,9 +38,8 @@ from homeassistant.helpers import (
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.loader import async_get_loaded_integration
 
-from .client import GrokClient
+from .client import GrokClient, loaded_integration_version
 from .const import (
     CONF_CHAT_MODEL,
     CONF_IMAGE_MODEL,
@@ -294,8 +293,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     except KeyError as err:
         raise ConfigEntryAuthFailed("SuperGrok OAuth tokens are missing") from err
 
+    version = loaded_integration_version(hass)
     client = GrokClient(
-        hass, tokens, persist=_persist(hass, entry), models_store=_models_store(hass, entry)
+        hass,
+        tokens,
+        persist=_persist(hass, entry),
+        models_store=_models_store(hass, entry),
+        version=version,
     )
     await client.async_load_models()
     try:
@@ -321,7 +325,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: GrokConfigEntry) -> bool
     entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
     LOGGER.info(
         "SuperGrok OAuth %s ready entry=%s chat=%s voice=%s realtime=%s imagine=%s",
-        async_get_loaded_integration(hass, DOMAIN).version,
+        version,
         entry.entry_id,
         chat_models(selected),
         has_voice(selected),

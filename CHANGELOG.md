@@ -6,6 +6,13 @@ The version is `version` in `custom_components/supergrok/manifest.json`. A relea
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-19
+
+### Fixed
+
+- Sending a camera snapshot or other image attachment no longer pauses Home Assistant
+- Diagnostics no longer include the xAI account id
+
 ## [0.7.1] - 2026-10-14
 
 ### Added

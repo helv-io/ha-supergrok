@@ -10,10 +10,10 @@ from custom_components.supergrok.diagnostics import async_get_config_entry_diagn
 
 
 async def test_diagnostics_redact_tokens(hass: HomeAssistant) -> None:
-    """Access, refresh, and id tokens never appear in diagnostics."""
+    """Tokens, email, name and the xAI account id never appear in diagnostics."""
     entry = MockConfigEntry(
         domain=DOMAIN,
-        title="Grok (user@example.com)",
+        title="Grok (Grok User)",
         unique_id="acct-1",
         data={
             "access_token": "SECRET_ACCESS_TOKEN",
@@ -22,10 +22,21 @@ async def test_diagnostics_redact_tokens(hass: HomeAssistant) -> None:
             "expires_at": 1700000000,
             "account_id": "acct-1",
             "account_email": "user@example.com",
+            "account_name": "Grok User",
             CONF_SELECTED_MODELS: ["grok-4.6", "voice", "realtime"],
         },
     )
     entry.add_to_hass(hass)
+    entry.runtime_data = type(
+        "Client",
+        (),
+        {
+            "tokens": type("Tokens", (), {"is_expired": lambda self: False})(),
+            "_chat_base": "https://cli-chat-proxy.grok.com/v1",
+            "_media_base": "https://cli-chat-proxy.grok.com/v1",
+            "recent_events": ["refresh_ok acct-1 user@example.com"],
+        },
+    )()
 
     payload = await async_get_config_entry_diagnostics(hass, entry)
     dumped = str(payload)
@@ -33,7 +44,13 @@ async def test_diagnostics_redact_tokens(hass: HomeAssistant) -> None:
     assert "SECRET_REFRESH_TOKEN" not in dumped
     assert "SECRET_ID_TOKEN" not in dumped
     assert "user@example.com" not in dumped
-    assert payload.get("account_email") in (None, "**REDACTED**", "REDACTED")
+    assert "Grok User" not in dumped
+    assert "acct-1" not in dumped
+    assert payload.get("account_email") == "**REDACTED**"
+    assert payload.get("unique_id") == "**REDACTED**"
+    assert payload.get("account_id") == "**REDACTED**"
+    assert payload["title"] == "Grok (**REDACTED**)"
+    assert "acct-1" not in str(payload["recent_events"])
     assert payload["selected_models"] == ["grok-4.6", "voice", "realtime"]
     assert payload["realtime"] is False
     assert payload["token_expires_at"] == 1700000000

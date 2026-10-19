@@ -21,7 +21,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import llm, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .client import GrokClient
+from .client import GrokClient, loaded_integration_version
 from .const import (
     CONF_ACCOUNT_EMAIL,
     CONF_ACCOUNT_ID,
@@ -345,7 +345,11 @@ class GrokOAuthConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _async_live_models(self) -> list[str]:
         """List models with the tokens from this login, before the entry exists."""
         try:
-            client = GrokClient(self.hass, OAuthTokens.from_dict(dict(self._tokens or {})))
+            client = GrokClient(
+                self.hass,
+                OAuthTokens.from_dict(dict(self._tokens or {})),
+                version=loaded_integration_version(self.hass),
+            )
         except Exception:  # noqa: BLE001
             return []
         return await _live_models(client)

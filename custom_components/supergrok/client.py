@@ -10,7 +10,6 @@ import time
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
@@ -19,12 +18,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
+from homeassistant.loader import IntegrationNotLoaded, async_get_loaded_integration
 
 from .const import (
     CHAT_API_BASES,
     CLIENT_IDENTIFIER,
     CLIENT_IDENTIFIER_FALLBACK,
     CLIENT_VERSION_FALLBACK,
+    DOMAIN,
     GROK_CLI_TOKEN_AUTH,
     IMAGE_PATHS,
     LOGGER,
@@ -46,15 +47,12 @@ from .toolschema import accumulate_stream_tool_delta, parse_tool_calls
 PersistTokens = Callable[[OAuthTokens], Awaitable[None] | None]
 
 
-def _integration_version() -> str:
-    """Read the integration version from manifest.json."""
+def loaded_integration_version(hass: HomeAssistant) -> str:
+    """Version Home Assistant already loaded, so setup does not read manifest.json."""
     try:
-        payload = json.loads(
-            (Path(__file__).resolve().parent / "manifest.json").read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError, json.JSONDecodeError):
+        version = async_get_loaded_integration(hass, DOMAIN).version
+    except IntegrationNotLoaded:
         return CLIENT_VERSION_FALLBACK
-    version = payload.get("version")
     return str(version) if version else CLIENT_VERSION_FALLBACK
 
 
@@ -94,6 +92,8 @@ class GrokClient:
         tokens: OAuthTokens,
         persist: PersistTokens | None = None,
         models_store: Store | None = None,
+        *,
+        version: str | None = None,
     ) -> None:
         self.hass = hass
         self._tokens = tokens
@@ -102,7 +102,7 @@ class GrokClient:
         self._chat_base = CHAT_API_BASES[0]
         self._media_base = MEDIA_API_BASES[0]
         self._client_identifier = CLIENT_IDENTIFIER
-        self._client_version = _integration_version()
+        self._client_version = version or CLIENT_VERSION_FALLBACK
         self._models_cache: list[str] | None = None
         self._models_fetched = 0.0
         self.models_created: dict[str, int] = {}

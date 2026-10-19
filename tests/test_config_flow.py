@@ -29,6 +29,8 @@ from custom_components.supergrok.const import (
 )
 from custom_components.supergrok.oauth import GrokOAuthError, OAuthTokens
 
+_REAL_LIVE_MODELS = GrokOAuthConfigFlow._async_live_models
+
 MOCK_TOKENS = OAuthTokens(
     access_token="test-access-token",
     refresh_token="test-refresh-token",
@@ -389,6 +391,35 @@ async def test_create_conversation_subentry_not_loaded(hass: HomeAssistant) -> N
     result = await flow.async_step_user()
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "entry_not_loaded"
+
+
+async def test_live_models_passes_the_loaded_integration_version(
+    hass: HomeAssistant, monkeypatch
+) -> None:
+    """The picker client is built with the loaded integration version, not a file read."""
+    from homeassistant.loader import async_get_integration
+
+    integration = await async_get_integration(hass, DOMAIN)
+    monkeypatch.setattr(GrokOAuthConfigFlow, "_async_live_models", _REAL_LIVE_MODELS)
+    seen: dict[str, str | None] = {}
+
+    class _Client:
+        def __init__(self, hass, tokens, *, version=None, **_kwargs) -> None:
+            seen["version"] = version
+
+        async def list_models(self, *, refresh: bool = False) -> list[str]:
+            return ["grok-4.6"]
+
+    monkeypatch.setattr("custom_components.supergrok.config_flow.GrokClient", _Client)
+    flow = GrokOAuthConfigFlow()
+    flow.hass = hass
+    flow._tokens = {
+        "access_token": "a",
+        "refresh_token": "b",
+        "expires_at": 9999999999,
+    }
+    assert await flow._async_live_models() == ["grok-4.6"]
+    assert seen["version"] == integration.version
 
 
 async def test_first_run_without_model_list_asks_to_retry(

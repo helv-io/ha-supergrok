@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_ACCOUNT_EMAIL,
+    CONF_ACCOUNT_ID,
     CONF_ACCOUNT_NAME,
     CONF_CHAT_MODEL,
     CONF_SELECTED_MODELS,
@@ -24,6 +25,8 @@ TO_REDACT = {
     "value",
     "account_email",
     "account_name",
+    "account_id",
+    "unique_id",
     "email",
 }
 
@@ -31,17 +34,20 @@ _REDACTED = "**REDACTED**"
 
 
 def _identity_secrets(entry: ConfigEntry) -> tuple[str, ...]:
-    """Raw account email and name, if present."""
+    """Raw account email, name and id, so they can be scrubbed out of strings."""
     secrets: list[str] = []
-    for key in (CONF_ACCOUNT_EMAIL, CONF_ACCOUNT_NAME):
+    for key in (CONF_ACCOUNT_EMAIL, CONF_ACCOUNT_NAME, CONF_ACCOUNT_ID):
         value = entry.data.get(key)
-        if isinstance(value, str) and value:
+        if isinstance(value, str) and value and value not in secrets:
             secrets.append(value)
+    unique_id = entry.unique_id
+    if isinstance(unique_id, str) and unique_id and unique_id not in secrets:
+        secrets.append(unique_id)
     return tuple(secrets)
 
 
 def _scrub_identity(value: Any, secrets: tuple[str, ...]) -> Any:
-    """Replace account email/name substrings in every string field."""
+    """Replace account email, name and id substrings in every string field."""
     if not secrets:
         return value
     if isinstance(value, str):
