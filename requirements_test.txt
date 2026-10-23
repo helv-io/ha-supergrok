@@ -3,7 +3,7 @@ pytest-asyncio>=1.4.0
 aiohttp>=3.14.3,<4.0.0
 hassil>=3.11.0
 # Home Assistant 2026.10 conversation imports this. The wheel does not depend on it.
-gazetteer-matcher==1.1.0
+gazetteer-matcher==1.2.0
 ha-ffmpeg>=3.2.2
 mutagen>=1.47.0
 voluptuous-openapi==0.4.1
